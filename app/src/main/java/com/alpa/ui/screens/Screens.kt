@@ -20,12 +20,12 @@ sealed class Screen(val route: String, val label: String, val icon: ImageVector)
     object Profile : Screen("profile", "Profil", Icons.Default.Person)
 }
 
-@Composable
-fun HomeScreen() {
-    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Text(text = "🏠 Écran d'accueil")
-    }
-}
+//@Composable
+//fun HomeScreen() {
+//    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+//        Text(text = "🏠 Écran d'accueil")
+//    }
+//}
 
 @Composable
 fun SearchScreen() {

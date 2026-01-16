@@ -1,5 +1,6 @@
 package com.alpa.ui.screens
 
+import android.util.Log
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
@@ -99,6 +100,7 @@ fun SummitsListScreen() {
                         IconButton(onClick = {
                             summits.replaceAll { if (it.id in selectedIds) it.copy(groupName = null) else it }
                             selectedIds.clear()
+                            Log.d("SummitsListScreen", "Dégrouper");
                         }) {
                             Icon(Icons.Default.LinkOff, "Dégrouper")
                         }
