@@ -22,14 +22,7 @@ import java.time.LocalDate
 
 // --- 1. MODÈLES DE DONNÉES ---
 
-data class Summit(
-    val id: String,
-    val name: String,
-    val altitude: Int,
-    val groupName: String? = null, // Null si "Sans groupe"
-    val isValidated: Boolean = false,
-    val validationDate: LocalDate? = null
-)
+
 
 enum class FilterType { ALL, VALIDATED, TODO }
 

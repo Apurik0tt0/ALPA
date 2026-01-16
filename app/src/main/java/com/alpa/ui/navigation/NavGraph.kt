@@ -33,6 +33,9 @@ fun AppNavHost(
     ) {
         composable(Screen.Home.route) { HomeScreen() }
         composable(Screen.SummitList.route) { SummitsListScreen() }
-        composable(Screen.Profile.route) { ProfileScreen() }
+        composable(Screen.Profile.route) { SummitDetailScreen(onBack = {
+            // On dit au navController de revenir à l'écran précédent
+            navController.popBackStack()
+        }) }
     }
 }
