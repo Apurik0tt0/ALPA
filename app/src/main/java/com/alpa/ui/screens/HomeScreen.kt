@@ -88,7 +88,7 @@ fun HeaderSection() {
     ) {
         Column {
             Text(
-                text = "Bonjour,",
+                text = "Bienvenue sur",
                 style = MaterialTheme.typography.titleMedium,
                 color = Color.Gray
             )
@@ -100,15 +100,15 @@ fun HeaderSection() {
             )
         }
         // Avatar fictif ou icône utilisateur
-        Box(
-            modifier = Modifier
-                .size(48.dp)
-                .clip(CircleShape)
-                .background(MaterialTheme.colorScheme.primaryContainer),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(Icons.Default.Person, contentDescription = "Profil")
-        }
+//        Box(
+//            modifier = Modifier
+//                .size(48.dp)
+//                .clip(CircleShape)
+//                .background(MaterialTheme.colorScheme.primaryContainer),
+//            contentAlignment = Alignment.Center
+//        ) {
+//            Icon(Icons.Default.Person, contentDescription = "Profil")
+//        }
     }
 }
 
