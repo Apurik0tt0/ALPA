@@ -18,7 +18,7 @@ import com.alpa.ui.screens.*
 @Composable
 fun MainScreen() {
     val navController = rememberNavController()
-    val items = listOf(Screen.Home, Screen.Search, Screen.Profile)
+    val items = listOf(Screen.Home, Screen.SummitList, Screen.Profile)
 
     Scaffold(
         bottomBar = {
