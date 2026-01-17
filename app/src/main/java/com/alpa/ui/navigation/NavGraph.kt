@@ -19,6 +19,8 @@ sealed class Screen(val route: String, val label: String, val icon: ImageVector)
     object SummitList : Screen("summitList", "Liste", Icons.Default.List)
     object Profile : Screen("profile", "Profil", Icons.Default.Person)
 
+    object  AddSummit : Screen("addSummit", "Ajouter", Icons.Default.Search)
+
 }
 
 // 2. Le NavHost qui fait le lien entre routes et écrans
@@ -33,10 +35,14 @@ fun AppNavHost(
         modifier = modifier
     ) {
         composable(Screen.Home.route) { HomeScreen() }
-        composable(Screen.SummitList.route) { SummitsListScreen() }
-        composable(Screen.Profile.route) { AddSummitScreen(onBack = {
-            // On dit au navController de revenir à l'écran précédent
-            navController.popBackStack()
-        }, onSummitAdded = { name, altitude, group ->  }) }
+        composable(Screen.SummitList.route) { SummitsListScreen( onNavigateToAddSummit = {
+            navController.navigate(Screen.AddSummit.route)
+        }) }
+        composable(Screen.Profile.route) { SummitDetailScreen { navController.popBackStack() } }
+        
+        composable(Screen.AddSummit.route) { AddSummitScreen(
+            onBack = { navController.popBackStack() },
+            onSummitAdded = { name, altitude, group ->  }
+        ) }
     }
 }

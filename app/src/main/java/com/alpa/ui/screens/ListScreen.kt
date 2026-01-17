@@ -44,7 +44,7 @@ val initialSummits = listOf(
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
-fun SummitsListScreen() {
+fun SummitsListScreen( onNavigateToAddSummit: () -> Unit ) {
     // -- État des données --
     // On utilise `toMutableStateList` pour pouvoir modifier la liste facilement
     val summits = remember { initialSummits.toMutableStateList() }
@@ -116,7 +116,7 @@ fun SummitsListScreen() {
                     TopAppBar(
                         title = { Text("Mes Sommets") },
                         actions = {
-                            IconButton(onClick = { /* Ajouter nouveau sommet */ }) {
+                            IconButton(onClick = { onNavigateToAddSummit() }) {
                                 Icon(Icons.Default.Add, "Ajouter")
                             }
                         }
