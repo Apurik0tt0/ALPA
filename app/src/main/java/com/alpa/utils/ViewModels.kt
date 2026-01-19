@@ -11,12 +11,17 @@ class SummitViewModel(private val dao: SummitDao) : ViewModel() {
 
     // 1. Observation des données (Flow)
     public val allSummits: Flow<List<SummitEntity>> = dao.getAllSummits()
+    public val allGroups: Flow<List<String>> = dao.getAllGroups()
 
     // 2. Action : Ajout d'un sommet
     fun addSummit(summit: SummitEntity) {
         viewModelScope.launch {
             dao.insertOrUpdate(summit)
         }
+    }
+
+    fun getGroups() {
+
     }
 
     fun logSummits() {

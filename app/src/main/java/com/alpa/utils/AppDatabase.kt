@@ -92,6 +92,9 @@ interface SummitDao {
     @Query("SELECT * FROM summits ORDER BY validationDate DESC, name ASC")
     fun getAllSummits(): Flow<List<SummitEntity>>
 
+    @Query("SELECT DISTINCT groupName FROM summits ORDER BY groupName ASC")
+    fun getAllGroups(): Flow<List<String>>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertOrUpdate(summit: SummitEntity)
 
@@ -133,6 +136,7 @@ abstract class AppDatabase : RoomDatabase() {
             val initialSummits = listOf(
                 SummitEntity(
                     name = "Mont Blanc",
+                    groupName = "France",
                     altitude = 4807,
                     location = "Chamonix, France",
                     transportModes = listOf(TransportMode.HIKING, TransportMode.CLIMBING), // Exemple liste multiple
@@ -140,6 +144,7 @@ abstract class AppDatabase : RoomDatabase() {
                 ),
                 SummitEntity(
                     name = "Puy de Sancy",
+                    groupName = "France",
                     altitude = 1885,
                     location = "Mont-Dore, France",
                     transportModes = listOf(TransportMode.HIKING), // Exemple liste simple
@@ -148,6 +153,7 @@ abstract class AppDatabase : RoomDatabase() {
                 ),
                 SummitEntity(
                     name = "Grand Colon",
+                    groupName = "Intestin",
                     altitude = 2394,
                     location = "Belledonne, France",
                     transportModes = emptyList(), // Exemple liste vide

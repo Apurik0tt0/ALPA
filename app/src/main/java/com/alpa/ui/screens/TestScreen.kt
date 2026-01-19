@@ -8,9 +8,11 @@ import android.util.Log
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.CheckCircle
@@ -31,18 +33,14 @@ import com.alpa.utils.SummitEntity
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TestScreen(viewModel: SummitViewModel) {
-    // 1. On "collecte" le flux de données.
-    // La liste se mettra à jour automatiquement dès que la BDD change.
     val summits by viewModel.allSummits.collectAsState(initial = emptyList())
+    val groups by viewModel.allGroups.collectAsState(initial = emptyList())
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text("Tous les sommets (${summits.size})") }
-            )
+            TopAppBar(title = { Text("Sommets (${summits.size})") })
         }
     ) { padding ->
-        // 2. Affichage simple via LazyColumn
         LazyColumn(
             modifier = Modifier
                 .padding(padding)
@@ -50,13 +48,33 @@ fun TestScreen(viewModel: SummitViewModel) {
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
+            // --- SECTION GROUPES ---
+            item {
+                Text(text = "Groupes disponibles :", style = MaterialTheme.typography.titleMedium)
+            }
+
+            item {
+                // Une ligne horizontale de puces (chips) pour les groupes par exemple
+                Row(modifier = Modifier.horizontalScroll(rememberScrollState())) {
+                    groups.forEach { group ->
+                        SuggestionChip(
+                            onClick = { /* Action */ },
+                            label = { Text(group) },
+                            modifier = Modifier.padding(end = 4.dp)
+                        )
+                    }
+                }
+            }
+
+            item { HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp)) }
+
+            // --- SECTION SOMMETS ---
             items(summits, key = { it.id }) { summit ->
                 SimpleSummitItem(summit)
             }
         }
     }
 }
-
 @Composable
 fun SimpleSummitItem(summit: SummitEntity) {
     Card(

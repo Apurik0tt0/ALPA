@@ -44,7 +44,8 @@ fun AppNavHost(
         composable(Screen.Profile.route) { TestScreen(viewModel = viewModel) }
         composable(Screen.AddSummit.route) { AddSummitScreen(
             onBack = { navController.popBackStack() },
-            onSummitAdded = { name, altitude, group ->  }
+            onSummitAdded = { name, altitude, group ->  },
+            viewModel = viewModel
         ) }
     }
 }

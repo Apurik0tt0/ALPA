@@ -22,7 +22,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
-import java.util.UUID
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.alpa.utils.SummitViewModel
+import com.alpa.utils.SummitEntity
 
 // On crée une petite classe de données temporaire pour les résultats de la "fausse" recherche API
 data class ApiResult(val name: String, val lat: Double, val lon: Double, val altitude: Int)
@@ -31,7 +33,8 @@ data class ApiResult(val name: String, val lat: Double, val lon: Double, val alt
 @Composable
 fun AddSummitScreen(
     onBack: () -> Unit,
-    onSummitAdded: (String, Int, String?) -> Unit // Callback pour valider l'ajout (Nom, Alt, Groupe)
+    onSummitAdded: (String, Int, String?) -> Unit, // Callback pour valider l'ajout (Nom, Alt, Groupe)
+    viewModel: SummitViewModel
 ) {
     // État de l'onglet sélectionné (0 = Manuel, 1 = Carte)
     var selectedTabIndex by remember { mutableIntStateOf(0) }
@@ -71,7 +74,7 @@ fun AddSummitScreen(
             // --- 2. LE CONTENU ---
             Box(modifier = Modifier.fillMaxSize().padding(16.dp)) {
                 if (selectedTabIndex == 0) {
-                    ManualEntryContent(onAddClick = onSummitAdded)
+                    ManualEntryContent(onAddClick = onSummitAdded, viewModel)
                 } else {
                     MapSearchContent(onAddFromApi = onSummitAdded)
                 }
@@ -82,10 +85,14 @@ fun AddSummitScreen(
 
 // --- CONTENU ONGLET 1 : SAISIE MANUELLE ---
 @Composable
-fun ManualEntryContent(onAddClick: (String, Int, String?) -> Unit) {
+fun ManualEntryContent(onAddClick: (String, Int, String?) -> Unit, viewModel: SummitViewModel) {
     var name by remember { mutableStateOf("") }
     var altitude by remember { mutableStateOf("") }
     var group by remember { mutableStateOf("") }
+
+    // Récupération des groupes existants depuis le ViewModel
+    val existingGroups by viewModel.allGroups.collectAsState(initial = emptyList())
+    var expanded by remember { mutableStateOf(false) }
 
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Text("Informations du sommet", style = MaterialTheme.typography.titleMedium)
@@ -107,12 +114,21 @@ fun ManualEntryContent(onAddClick: (String, Int, String?) -> Unit) {
             singleLine = true
         )
 
-        OutlinedTextField(
-            value = group,
-            onValueChange = { group = it },
-            label = { Text("Groupe / Massif (Optionnel)") },
-            modifier = Modifier.fillMaxWidth(),
-            singleLine = true
+//        OutlinedTextField(
+//            value = group,
+//            onValueChange = { group = it },
+//            label = { Text("Groupe / Massif (Optionnel)") },
+//            modifier = Modifier.fillMaxWidth(),
+//            singleLine = true
+//        )
+
+        GroupSelector(
+            existingGroups = existingGroups,
+            onGroupSelected = { selectedName ->
+                // Si c'est un nouveau nom, votre ViewModel peut décider
+                // de l'ajouter en base ou simplement de l'utiliser.
+                //viewModel.onGroupPicked(selectedName)
+            }
         )
 
         Spacer(modifier = Modifier.weight(1f))
@@ -129,6 +145,80 @@ fun ManualEntryContent(onAddClick: (String, Int, String?) -> Unit) {
             Icon(Icons.Default.Add, contentDescription = null)
             Spacer(modifier = Modifier.width(8.dp))
             Text("Ajouter à ma liste")
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun GroupSelector(
+    existingGroups: List<String>,
+    onGroupSelected: (String) -> Unit
+) {
+    var expanded by remember { mutableStateOf(false) }
+    var textValue by remember { mutableStateOf("") }
+
+    // On filtre les suggestions basées sur la saisie de l'utilisateur
+    val filteredGroups = existingGroups.filter {
+        it.contains(textValue, ignoreCase = true)
+    }
+
+    Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
+        ExposedDropdownMenuBox(
+            expanded = expanded,
+            onExpandedChange = { expanded = !expanded }
+        ) {
+            OutlinedTextField(
+                value = textValue,
+                onValueChange = {
+                    textValue = it
+                    expanded = true
+                },
+                label = { Text("Groupe (Sélectionner ou Créer)") },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .menuAnchor(),
+                trailingIcon = {
+                    ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded)
+                },
+                colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors()
+            )
+
+            // Fenêtre de sélection
+            ExposedDropdownMenu(
+                expanded = expanded,
+                onDismissRequest = { expanded = false }
+            ) {
+                // 1. Affichage des groupes existants filtrés
+                filteredGroups.forEach { group ->
+                    DropdownMenuItem(
+                        text = { Text(group) },
+                        onClick = {
+                            textValue = group
+                            expanded = false
+                            onGroupSelected(group)
+                        }
+                    )
+                }
+
+                // 2. Option de création si le texte n'existe pas déjà
+                if (textValue.isNotEmpty() && !existingGroups.contains(textValue)) {
+                    DropdownMenuItem(
+                        text = {
+                            Text(
+                                text = "Ajouter \"$textValue\"",
+                                color = MaterialTheme.colorScheme.primary,
+                                fontWeight = FontWeight.Bold
+                            )
+                        },
+                        leadingIcon = { Icon(Icons.Default.Add, contentDescription = null) },
+                        onClick = {
+                            expanded = false
+                            onGroupSelected(textValue)
+                        }
+                    )
+                }
+            }
         }
     }
 }
