@@ -14,9 +14,10 @@ import androidx.navigation.compose.rememberNavController
 
 import com.alpa.ui.navigation.AppNavHost
 import com.alpa.ui.screens.*
+import com.alpa.utils.SummitViewModel
 
 @Composable
-fun MainScreen() {
+fun MainScreen(viewModel : SummitViewModel) {
     val navController = rememberNavController()
     val items = listOf(Screen.Home, Screen.SummitList, Screen.Profile)
 
@@ -46,7 +47,8 @@ fun MainScreen() {
         // On appelle notre NavHost ici
         AppNavHost(
             navController = navController,
-            modifier = Modifier.padding(innerPadding)
+            modifier = Modifier.padding(innerPadding),
+            viewModel = viewModel
         )
     }
 }
