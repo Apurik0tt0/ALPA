@@ -20,6 +20,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import java.time.LocalDate
 
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import okhttp3.OkHttpClient
+import okhttp3.Request
+
+
 // --- 1. MODÈLES DE DONNÉES ---
 
 
@@ -76,6 +83,10 @@ fun SummitsListScreen( onNavigateToAddSummit: () -> Unit ) {
         filteredSummits.groupBy { it.groupName ?: "Sans groupe" }
     }
 
+    //TEST API
+    var apiResult by remember { mutableStateOf("Aucun appel effectué") }
+    var isLoading by remember { mutableStateOf(false) }
+
     Scaffold(
         topBar = {
             if (isSelectionMode) {
@@ -93,7 +104,7 @@ fun SummitsListScreen( onNavigateToAddSummit: () -> Unit ) {
                         IconButton(onClick = {
                             summits.replaceAll { if (it.id in selectedIds) it.copy(groupName = null) else it }
                             selectedIds.clear()
-                            Log.d("SummitsListScreen", "Dégrouper");
+                            Log.d("SummitsListScreen", "Dégrouper")
                         }) {
                             Icon(Icons.Default.LinkOff, "Dégrouper")
                         }
@@ -147,9 +158,58 @@ fun SummitsListScreen( onNavigateToAddSummit: () -> Unit ) {
         }
     ) { padding ->
 
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp)
+                .background(
+                    MaterialTheme.colorScheme.surfaceVariant,
+                    shape = MaterialTheme.shapes.medium
+                )
+                .padding(16.dp)
+                .padding(top = 120.dp), // Ajoute un padding en haut pour laisser un espace
+        ) {
+            Text(
+                "API Overpass – Zone de test",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold
+            )
+
+            Spacer(Modifier.height(8.dp))
+
+            Button(
+                onClick = {
+                    isLoading = true
+                    apiResult = "Chargement..."
+                    testOverpassCall(
+                        onResult = { result ->
+                            apiResult = result
+                            isLoading = false
+                        }
+                    )
+                }
+            ) {
+                Text("Tester API (sommets autour du Mont Blanc)")
+            }
+
+            Spacer(Modifier.height(8.dp))
+
+            if (isLoading) {
+                CircularProgressIndicator(modifier = Modifier.size(24.dp))
+            } else {
+                Text(
+                    apiResult,
+                    style = MaterialTheme.typography.bodySmall
+                )
+            }
+        }
+
         // -- LISTE SCROLLABLE --
         LazyColumn(
-            modifier = Modifier.padding(padding).fillMaxSize(),
+            modifier = Modifier
+                .padding(padding)
+                .fillMaxSize()
+                .padding(top = 5000.dp), // Ajoute un padding en haut pour laisser un espace
             contentPadding = PaddingValues(bottom = 80.dp)
         ) {
             groupedSummits.forEach { (groupName, itemsInGroup) ->
@@ -190,7 +250,7 @@ fun SummitsListScreen( onNavigateToAddSummit: () -> Unit ) {
                             onClick = {
                                 if (isSelectionMode) {
                                     if (isSelected) selectedIds.remove(summit.id) else selectedIds.add(summit.id)
-                                    if (selectedIds.isEmpty()) { /* Sortir auto du mode selection ? ou pas */ }
+                                    //if (selectedIds.isEmpty()) { /* Sortir auto du mode selection ? ou pas */ }
                                 } else {
                                     // Action click normal (ex: voir détails)
                                 }
@@ -368,4 +428,38 @@ fun MoveToGroupDialog(
             TextButton(onClick = onDismiss) { Text("Annuler") }
         }
     )
+}
+fun testOverpassCall(onResult: (String) -> Unit) {
+
+    val query = """
+    [out:json][timeout:25];
+    (
+      node
+        ["natural"="peak"]
+        (around:10000,45.8326,6.8647);
+    );
+    out body;
+    """.trimIndent()
+
+    val url = "https://overpass-api.de/api/interpreter?data=$query"
+
+    val client = OkHttpClient()
+
+    val request = Request.Builder()
+        .url(url)
+        .get()
+        .build()
+
+    CoroutineScope(Dispatchers.IO).launch {
+        try {
+            val response = client.newCall(request).execute()
+            val body = response.body?.string()
+
+            Log.d("OverpassAPI", "Réponse API: $body")
+
+            onResult(body?.take(1500) ?: "Réponse vide")
+        } catch (e: Exception) {
+            onResult("Erreur API : ${e.message}")
+        }
+    }
 }
