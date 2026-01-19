@@ -10,7 +10,7 @@ import kotlinx.coroutines.launch
 class SummitViewModel(private val dao: SummitDao) : ViewModel() {
 
     // 1. Observation des données (Flow)
-    val allSummits: Flow<List<SummitEntity>> = dao.getAllSummits()
+    public val allSummits: Flow<List<SummitEntity>> = dao.getAllSummits()
 
     // 2. Action : Ajout d'un sommet
     fun addSummit(summit: SummitEntity) {

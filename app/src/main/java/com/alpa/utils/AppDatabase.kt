@@ -146,13 +146,13 @@ abstract class AppDatabase : RoomDatabase() {
                     isValidated = true,
                     validationDate = LocalDate.now().minusDays(10)
                 ),
-//                SummitEntity(
-//                    name = "Grand Colon",
-//                    altitude = 2394,
-//                    location = "Belledonne, France",
-//                    transportModes = emptyList(), // Exemple liste vide
-//                    notes = "À faire en ski cet hiver"
-//                )
+                SummitEntity(
+                    name = "Grand Colon",
+                    altitude = 2394,
+                    location = "Belledonne, France",
+                    transportModes = emptyList(), // Exemple liste vide
+                    notes = "À faire en ski cet hiver"
+                )
             )
             dao.insertAll(initialSummits)
         }
