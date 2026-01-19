@@ -26,6 +26,7 @@ import kotlinx.coroutines.launch
 import okhttp3.OkHttpClient
 import okhttp3.Request
 
+import org.json.JSONObject
 
 // --- 1. MODÈLES DE DONNÉES ---
 
@@ -45,6 +46,14 @@ val initialSummits = listOf(
     Summit("7", "Everest", 8848, "Himalaya", false),
     Summit("8", "Kilimanjaro", 5895, null, false), // Sans groupe
     Summit("9", "Fuji", 3776, null, true, LocalDate.of(2019, 8, 1))
+)
+
+//stockage local des donnés récupérées par appel à l'API
+data class ApiSummit(
+    val name: String,
+    val altitude: Int?,       // certains sommets n'ont pas d'altitude dans OSM
+    val lat: Double?,
+    val lon: Double?
 )
 
 // --- 3. ÉCRAN PRINCIPAL ---
@@ -83,8 +92,8 @@ fun SummitsListScreen( onNavigateToAddSummit: () -> Unit ) {
         filteredSummits.groupBy { it.groupName ?: "Sans groupe" }
     }
 
-    //TEST API
-    var apiResult by remember { mutableStateOf("Aucun appel effectué") }
+    //TEST API: variables pour afficher
+    var apiResult by remember { mutableStateOf<List<ApiSummit>>(emptyList()) }
     var isLoading by remember { mutableStateOf(false) }
 
     Scaffold(
@@ -158,6 +167,9 @@ fun SummitsListScreen( onNavigateToAddSummit: () -> Unit ) {
         }
     ) { padding ->
 
+        //colonne à modifier
+        //teste les appels de sommets sur la carte
+
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -180,13 +192,11 @@ fun SummitsListScreen( onNavigateToAddSummit: () -> Unit ) {
             Button(
                 onClick = {
                     isLoading = true
-                    apiResult = "Chargement..."
-                    testOverpassCall(
-                        onResult = { result ->
-                            apiResult = result
-                            isLoading = false
-                        }
-                    )
+                    apiResult = emptyList()
+                    testOverpassCall { result ->
+                        apiResult = result
+                        isLoading = false
+                    }
                 }
             ) {
                 Text("Tester API (sommets autour du Mont Blanc)")
@@ -197,10 +207,19 @@ fun SummitsListScreen( onNavigateToAddSummit: () -> Unit ) {
             if (isLoading) {
                 CircularProgressIndicator(modifier = Modifier.size(24.dp))
             } else {
-                Text(
-                    apiResult,
-                    style = MaterialTheme.typography.bodySmall
-                )
+                Column {
+                    if (apiResult.isEmpty()) {
+                        Text("Aucun sommet trouvé")
+                    } else {
+                        apiResult.forEach { summit ->
+                            Text(
+                                "• ${summit.name} - ${summit.altitude ?: "N/A"} m " +
+                                        "(${summit.lat}, ${summit.lon})",
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                        }
+                    }
+                }
             }
         }
 
@@ -429,14 +448,20 @@ fun MoveToGroupDialog(
         }
     )
 }
-fun testOverpassCall(onResult: (String) -> Unit) {
+
+fun testOverpassCall(onResult: (List<ApiSummit>) -> Unit) {
+
+    //appelle l'API overpass
+    // recherche les pics présents dans un rayon donné
+    // 10 000 : rayon du cercle + coordonnées : centre du cercle
+    //sauvegarde les résultats nom altitude coord et les affiche sur la page
 
     val query = """
     [out:json][timeout:25];
     (
       node
-        ["natural"="peak"]
-        (around:10000,45.8326,6.8647);
+        ["natural"="peak"] 
+        (around:10000,45.8326,6.8647); 
     );
     out body;
     """.trimIndent()
@@ -444,22 +469,31 @@ fun testOverpassCall(onResult: (String) -> Unit) {
     val url = "https://overpass-api.de/api/interpreter?data=$query"
 
     val client = OkHttpClient()
-
-    val request = Request.Builder()
-        .url(url)
-        .get()
-        .build()
+    val request = Request.Builder().url(url).get().build()
 
     CoroutineScope(Dispatchers.IO).launch {
         try {
             val response = client.newCall(request).execute()
             val body = response.body?.string()
 
-            Log.d("OverpassAPI", "Réponse API: $body")
+            val summits = mutableListOf<ApiSummit>()
+            body?.let {
+                val json = JSONObject(it)
+                val elements = json.getJSONArray("elements")
+                for (i in 0 until elements.length()) {
+                    val element = elements.getJSONObject(i)
+                    val lat = element.optDouble("lat")
+                    val lon = element.optDouble("lon")
+                    val tags = element.optJSONObject("tags")
+                    val name = tags?.optString("name") ?: continue
+                    val ele = tags?.optString("ele")?.toIntOrNull()  // altitude en mètres
+                    summits.add(ApiSummit(name = name, altitude = ele, lat = lat, lon = lon))
+                }
+            }
 
-            onResult(body?.take(1500) ?: "Réponse vide")
+            onResult(summits)
         } catch (e: Exception) {
-            onResult("Erreur API : ${e.message}")
+            onResult(listOf(ApiSummit("Erreur API : ${e.message}", null, 0.0, 0.0)))
         }
     }
 }
