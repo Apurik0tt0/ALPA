@@ -12,6 +12,7 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import com.alpa.ui.screens.*
+import com.alpa.utils.SummitViewModel
 
 // 1. Définition des écrans
 sealed class Screen(val route: String, val label: String, val icon: ImageVector) {
@@ -27,6 +28,7 @@ sealed class Screen(val route: String, val label: String, val icon: ImageVector)
 @Composable
 fun AppNavHost(
     navController: NavHostController,
+    viewModel: SummitViewModel,
     modifier: Modifier = Modifier
 ) {
     NavHost(
@@ -34,12 +36,12 @@ fun AppNavHost(
         startDestination = Screen.Home.route,
         modifier = modifier
     ) {
-        composable(Screen.Home.route) { HomeScreen() }
+        composable(Screen.Home.route) { HomeScreen(viewModel = viewModel) }
         composable(Screen.SummitList.route) { SummitsListScreen( onNavigateToAddSummit = {
             navController.navigate(Screen.AddSummit.route)
         }) }
-        composable(Screen.Profile.route) { SummitDetailScreen { navController.popBackStack() } }
-        
+        //composable(Screen.Profile.route) { SummitDetailScreen { navController.popBackStack() } }
+        composable(Screen.Profile.route) { TestScreen(viewModel = viewModel) }
         composable(Screen.AddSummit.route) { AddSummitScreen(
             onBack = { navController.popBackStack() },
             onSummitAdded = { name, altitude, group ->  }

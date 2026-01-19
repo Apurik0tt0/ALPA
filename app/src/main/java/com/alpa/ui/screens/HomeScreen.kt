@@ -23,13 +23,14 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.alpa.utils.SummitViewModel
 import java.time.format.DateTimeFormatter
 
 // On réutilise les modèles définis précédemment (Summit)
 // Assurez-vous d'avoir accès à 'initialSummits' ici.
 
 @Composable
-fun HomeScreen() {
+fun HomeScreen(viewModel: SummitViewModel) {
     // 1. Préparation des données (Logique métier simple)
     val summits = remember { initialSummits } // On reprend la liste fictive
 
@@ -73,6 +74,14 @@ fun HomeScreen() {
         // --- Dernières ascensions ---
         if (recentSummits.isNotEmpty()) {
             RecentActivitySection(recentSummits)
+        }
+
+        Button(onClick = {
+            // Code à exécuter lors du clic
+            viewModel.logSummits()
+        }) {
+            // Contenu à l'intérieur du bouton (généralement du texte)
+            Text(text = "Cliquez ici")
         }
     }
 }
