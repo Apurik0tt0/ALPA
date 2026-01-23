@@ -118,6 +118,14 @@ interface SummitDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAll(summits: List<SummitEntity>) // Utilisé pour le pré-remplissage
 
+    // Met à jour le champ 'range' (groupe) pour tous les IDs fournis
+    @Query("UPDATE summits SET groupName = :newGroup WHERE id IN (:ids)")
+    suspend fun updateRangeForIds(ids: List<Int>, newGroup: String?)
+
+    // Supprime tous les sommets dont l'ID est dans la liste
+    @Query("DELETE FROM summits WHERE id IN (:ids)")
+    suspend fun deleteByIds(ids: List<Int>)
+
     @Delete
     suspend fun delete(summit: SummitEntity)
 

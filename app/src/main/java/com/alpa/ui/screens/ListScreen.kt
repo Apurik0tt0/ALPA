@@ -78,7 +78,7 @@ fun SummitsListScreen(
                     actions = {
                         // Action: Dégrouper (Mettre le groupe à null)
                         IconButton(onClick = {
-                            //viewModel.updateGroupForList(selectedIds.toList(), null)
+                            viewModel.updateGroupForList(selectedIds.toList(), null)
                             selectedIds.clear()
                         }) {
                             Icon(Icons.Default.LinkOff, "Dégrouper")
@@ -89,7 +89,7 @@ fun SummitsListScreen(
                         }
                         // Action: Supprimer
                         IconButton(onClick = {
-                            //viewModel.deleteSummits(selectedIds.toList())
+                            viewModel.deleteSummits(selectedIds.toList())
                             selectedIds.clear()
                         }) {
                             Icon(Icons.Default.Delete, "Supprimer")
@@ -207,7 +207,7 @@ fun SummitsListScreen(
                 existingGroups = allSummits.mapNotNull { it.groupName }.distinct(),
                 onDismiss = { showMoveGroupDialog = false },
                 onGroupSelected = { newGroup ->
-                    //viewModel.updateGroupForList(selectedIds.toList(), newGroup)
+                    viewModel.updateGroupForList(selectedIds.toList(), newGroup)
                     selectedIds.clear()
                     showMoveGroupDialog = false
                 }

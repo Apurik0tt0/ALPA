@@ -63,6 +63,20 @@ class SummitViewModel(private val dao: SummitDao) : ViewModel() {
         updateSummit(updatedSummit)
     }
 
+    fun updateGroupForList(selectedIds: List<Int>, newGroup: String?) {
+        // On lance une coroutine car c'est une opération I/O (base de données)
+        viewModelScope.launch {
+            // On appelle une fonction spéciale du DAO pour tout mettre à jour d'un coup
+            dao.updateRangeForIds(selectedIds, newGroup)
+        }
+    }
+
+    fun deleteSummits(selectedIds: List<Int>) {
+        viewModelScope.launch {
+            dao.deleteByIds(selectedIds)
+        }
+    }
+
     fun logSummits() {
         viewModelScope.launch {
             // On "collecte" le flux pour voir ce qu'il y a dedans
