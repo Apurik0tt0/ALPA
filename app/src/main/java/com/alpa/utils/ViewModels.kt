@@ -6,6 +6,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
+import java.time.LocalDate
 
 class SummitViewModel(private val dao: SummitDao) : ViewModel() {
 
@@ -26,6 +27,40 @@ class SummitViewModel(private val dao: SummitDao) : ViewModel() {
         viewModelScope.launch {
             dao.insertOrUpdate(summit)
         }
+    }
+
+    fun toggleTransportMode(summit: SummitEntity, mode: TransportMode) {
+        // 1. Calcul de la nouvelle liste des modes
+        val currentModes = summit.transportModes
+        val newModes = if (currentModes.contains(mode)) {
+            currentModes - mode
+        } else {
+            currentModes + mode
+        }
+
+        // 2. Détermination automatique de l'état de validation
+        // Si la nouvelle liste n'est pas vide, le sommet est validé
+        val isNowValidated = newModes.isNotEmpty()
+
+        // On définit la date :
+        // - Si on vient de valider (était vide avant), on met la date du jour.
+        // - Si on dévalide (devient vide), on met null.
+        // - Sinon, on garde la date existante.
+        val newValidationDate = when {
+            isNowValidated && summit.validationDate == null -> LocalDate.now()
+            !isNowValidated -> null
+            else -> summit.validationDate
+        }
+
+        // 3. Création de la copie avec les nouveaux états
+        val updatedSummit = summit.copy(
+            transportModes = newModes,
+            isValidated = isNowValidated,
+            validationDate = newValidationDate
+        )
+
+        // 4. Sauvegarde
+        updateSummit(updatedSummit)
     }
 
     fun logSummits() {

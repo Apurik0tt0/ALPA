@@ -20,6 +20,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.alpa.utils.SummitEntity
 import com.alpa.utils.SummitViewModel
 import com.alpa.utils.TransportMode
@@ -123,7 +124,7 @@ fun SummitDetailScreen(
                     )
                 } else {
                     // --- MODE VUE ---
-                    ViewContent(summit = summit)
+                    ViewContent(viewModel = viewModel, summit = summit)
                 }
             }
         }
@@ -134,7 +135,9 @@ fun SummitDetailScreen(
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun ViewContent(summit: SummitEntity) {
+fun ViewContent(viewModel: SummitViewModel, summit: SummitEntity) {
+
+
     Column(
         modifier = Modifier.fillMaxWidth(),
         horizontalAlignment = Alignment.CenterHorizontally
@@ -161,7 +164,7 @@ fun ViewContent(summit: SummitEntity) {
 
     DetailRow(icon = Icons.Default.Place, label = "Massif / Groupe", value = summit.groupName ?: "Non classé")
 
-    if (summit.isValidated) {
+
         DetailRow(
             icon = Icons.Default.Event,
             label = "Date de réalisation",
@@ -169,36 +172,51 @@ fun ViewContent(summit: SummitEntity) {
         )
 
         // Affichage spécial pour la liste des modes de transport
-        Column(modifier = Modifier.padding(vertical = 8.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.DirectionsRun, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                Spacer(modifier = Modifier.width(16.dp))
-                Text("Moyen(s) de réalisation", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
-            }
-            Spacer(modifier = Modifier.height(4.dp))
+    Column(modifier = Modifier.padding(vertical = 8.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Default.DirectionsRun, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+            Spacer(modifier = Modifier.width(16.dp))
+            Text("Moyen(s) de réalisation", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+        }
 
-            // Liste des modes sous forme de Chips (Lecture seule)
-            FlowRow(
-                modifier = Modifier.padding(start = 40.dp), // Décalage pour aligner avec le texte
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                if (summit.transportModes.isEmpty()) {
-                    Text("Non spécifié", style = MaterialTheme.typography.bodyLarge)
-                } else {
-                    summit.transportModes.forEach { mode ->
-                        SuggestionChip(
-                            onClick = {}, // Inactif
-                            label = { Text(mode.label) },
-                            icon = { Icon(mode.icon, contentDescription = null, modifier = Modifier.size(16.dp)) }
-                        )
+        Spacer(modifier = Modifier.height(4.dp))
+
+        // 2. Affichage de TOUS les modes possibles
+        FlowRow(
+            modifier = Modifier.padding(start = 40.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            // Supposons que TransportMode.values() donne tous les types (Ski, Pied, Vélo, etc.)
+            TransportMode.values().forEach { mode ->
+                val isSelected = summit.transportModes.contains(mode)
+
+                FilterChip(
+                    selected = isSelected,
+                    onClick = {
+                        viewModel.toggleTransportMode(summit, mode)
+                    },
+                    label = { Text(mode.label) },
+                    leadingIcon = if (isSelected) {
+                        { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp)) }
+                    } else {
+                        { Icon(mode.icon, contentDescription = null, modifier = Modifier.size(16.dp)) }
                     }
-                }
+                )
             }
         }
+    }
+
+    // Le reste de ton code (Date de réalisation / Card "À faire")
+    if (summit.isValidated) {
+        DetailRow(
+            icon = Icons.Default.Event,
+            label = "Date de réalisation",
+            value = summit.validationDate?.format(DateTimeFormatter.ofPattern("dd MMMM yyyy")) ?: "Date inconnue"
+        )
     } else {
         Card(
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
         ) {
             Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Default.Schedule, contentDescription = null)
@@ -207,6 +225,7 @@ fun ViewContent(summit: SummitEntity) {
             }
         }
     }
+
 
     HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
 
