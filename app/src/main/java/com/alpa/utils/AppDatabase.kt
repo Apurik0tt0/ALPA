@@ -16,7 +16,6 @@ import kotlinx.serialization.descriptors.SerialDescriptor
 import kotlinx.serialization.encoding.Decoder
 import kotlinx.serialization.encoding.Encoder
 import java.time.LocalDate
-import java.util.UUID
 
 // ==========================================
 // 0. SERIALIZER CUSTOM
@@ -68,7 +67,7 @@ class Converters {
 data class SummitEntity(
     @PrimaryKey(autoGenerate = true) val id: Int = 0,
     val name: String,
-    val altitude: Int,
+    val altitude: Int? = 0,
     val groupName: String? = null,
     val isValidated: Boolean = false,
 
@@ -80,8 +79,8 @@ data class SummitEntity(
 
     val notes: String = "",
     val location: String = "",
-    val latitude: Double = 0.0,
-    val longitude: Double = 0.0
+    val latitude: Double? = 0.0,
+    val longitude: Double? = 0.0
 )
 
 // ==========================================
@@ -110,7 +109,7 @@ interface SummitDao {
 // ==========================================
 // 4. DATABASE
 // ==========================================
-@Database(entities = [SummitEntity::class], version = 1, exportSchema = false)
+@Database(entities = [SummitEntity::class], version = 3, exportSchema = false)
 @TypeConverters(Converters::class)
 abstract class AppDatabase : RoomDatabase() {
 

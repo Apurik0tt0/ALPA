@@ -1,9 +1,7 @@
 package com.alpa.ui.screens
 
 import android.util.Log
-import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -32,9 +30,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.viewmodel.compose.viewModel
 import com.alpa.utils.SummitViewModel
-import androidx.compose.ui.text.input.TextFieldValue
 
 import com.alpa.utils.SummitEntity
 
@@ -192,6 +188,7 @@ fun ManualEntryContent(onAddClick: (String, Int, String?) -> Unit, viewModel: Su
                 if (name.isNotBlank() && altitude.isNotBlank()) {
                     onAddClick(name, altitude.toInt(), selectedGroupName.ifBlank { null })
                     Log.d("D","$name, $altitude, $selectedGroupName")
+                    viewModel.addSummit(SummitEntity(name = name, altitude = altitude.toIntOrNull(), groupName = selectedGroupName, location = locationName, latitude = latitude.toDoubleOrNull(), longitude = longitude.toDoubleOrNull()))
                 }
             },
             modifier = Modifier.fillMaxWidth(),
