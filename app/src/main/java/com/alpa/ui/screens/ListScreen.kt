@@ -466,7 +466,8 @@ fun testOverpassCall(onResult: (List<ApiSummit>) -> Unit) {
     out body;
     """.trimIndent()
 
-    val url = "https://overpass-api.de/api/interpreter?data=$query"
+    val encodedQuery = java.net.URLEncoder.encode(query, "UTF-8")
+    val url = "https://overpass-api.de/api/interpreter?data=$encodedQuery"
 
     val client = OkHttpClient()
     val request = Request.Builder().url(url).get().build()
@@ -476,9 +477,10 @@ fun testOverpassCall(onResult: (List<ApiSummit>) -> Unit) {
             val response = client.newCall(request).execute()
             val body = response.body?.string()
 
-            val summits = mutableListOf<ApiSummit>()
-            body?.let {
-                val json = JSONObject(it)
+            if (body != null && body.trimStart().startsWith("{")) {
+                // C’est probablement du JSON
+                val summits = mutableListOf<ApiSummit>()
+                val json = JSONObject(body)
                 val elements = json.getJSONArray("elements")
                 for (i in 0 until elements.length()) {
                     val element = elements.getJSONObject(i)
@@ -486,12 +488,14 @@ fun testOverpassCall(onResult: (List<ApiSummit>) -> Unit) {
                     val lon = element.optDouble("lon")
                     val tags = element.optJSONObject("tags")
                     val name = tags?.optString("name") ?: continue
-                    val ele = tags?.optString("ele")?.toIntOrNull()  // altitude en mètres
+                    val ele = tags?.optString("ele")?.toIntOrNull()
                     summits.add(ApiSummit(name = name, altitude = ele, lat = lat, lon = lon))
                 }
+                onResult(summits)
+            } else {
+                // Réponse inattendue (XML ou HTML)
+                onResult(listOf(ApiSummit("Erreur API : réponse invalide", null, 0.0, 0.0)))
             }
-
-            onResult(summits)
         } catch (e: Exception) {
             onResult(listOf(ApiSummit("Erreur API : ${e.message}", null, 0.0, 0.0)))
         }
