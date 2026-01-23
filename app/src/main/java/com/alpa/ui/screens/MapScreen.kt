@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -32,14 +33,21 @@ fun MapScreen(viewModel: SummitViewModel) {
     // --- 2. ÉTATS DES FILTRES ---
     var showFilterSheet by remember { mutableStateOf(false) }
     var minAltitude by remember { mutableFloatStateOf(0f) }
-    var selectedGroup by remember { mutableStateOf<String?>(null) } // Null = "Tous"
+
+    // null = "Tous" (Aucun filtre actif)
+    // List<String> = Liste des groupes à afficher
+    var selectedGroups by remember { mutableStateOf<List<String>?>(null) }
 
     // --- 3. LOGIQUE DE FILTRAGE ---
-    val filteredSummits = remember(allSummits, minAltitude, selectedGroup) {
+    val filteredSummits = remember(allSummits, minAltitude, selectedGroups) {
         allSummits.filter { summit ->
             val alt = summit.altitude ?: 0
             val matchAltitude = alt >= minAltitude
-            val matchGroup = selectedGroup == null || summit.groupName == selectedGroup
+
+            // Si selectedGroups est null, on affiche tout.
+            // Sinon, on vérifie si le groupe du sommet est dans la liste sélectionnée.
+            val matchGroup = selectedGroups == null || (summit.groupName != null && selectedGroups!!.contains(summit.groupName))
+
             matchAltitude && matchGroup
         }
     }
@@ -72,7 +80,6 @@ fun MapScreen(viewModel: SummitViewModel) {
                     }
                 },
                 update = { mapView ->
-                    // Cette partie s'exécute à chaque changement de 'filteredSummits'
                     mapView.overlays.clear()
 
                     filteredSummits.forEach { summit ->
@@ -82,7 +89,6 @@ fun MapScreen(viewModel: SummitViewModel) {
                             marker.title = summit.name
                             marker.snippet = "${summit.altitude}m - ${summit.groupName ?: "Sans groupe"}"
 
-                            // Logique simple pour centrer sur le marqueur au clic et afficher l'info
                             marker.setOnMarkerClickListener { m, _ ->
                                 m.showInfoWindow()
                                 true
@@ -91,11 +97,11 @@ fun MapScreen(viewModel: SummitViewModel) {
                             mapView.overlays.add(marker)
                         }
                     }
-                    mapView.invalidate() // Force le redessin
+                    mapView.invalidate()
                 }
             )
 
-            // Affichage du nombre de résultats en haut (Feedback visuel)
+            // Feedback visuel nombre de sommets
             Surface(
                 modifier = Modifier.align(Alignment.TopCenter).padding(top = 16.dp),
                 shape = MaterialTheme.shapes.extraLarge,
@@ -119,7 +125,7 @@ fun MapScreen(viewModel: SummitViewModel) {
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(16.dp)
-                    .padding(bottom = 32.dp), // Marge pour la barre de nav
+                    .padding(bottom = 32.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 Text("Filtrer la carte", style = MaterialTheme.typography.headlineSmall)
@@ -131,14 +137,13 @@ fun MapScreen(viewModel: SummitViewModel) {
                 Slider(
                     value = minAltitude,
                     onValueChange = { minAltitude = it },
-                    valueRange = 0f..4810f, // De 0 au Mont Blanc
-                    steps = 47 // Pas de ~100m
+                    valueRange = 0f..4810f,
+                    steps = 47
                 )
 
-                // -- Filtre Groupe --
+                // -- Filtre Groupe (Multi-sélection) --
                 Text("Groupe / Massif", style = MaterialTheme.typography.titleMedium)
 
-                // Liste défilante horizontale pour les groupes
                 LazyRow(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     modifier = Modifier.fillMaxWidth()
@@ -146,30 +151,48 @@ fun MapScreen(viewModel: SummitViewModel) {
                     // Puce "Tous"
                     item {
                         FilterChip(
-                            selected = selectedGroup == null,
-                            onClick = { selectedGroup = null },
-                            label = { Text("Tous") }
+                            selected = selectedGroups == null,
+                            onClick = { selectedGroups = null }, // Reset à Tous
+                            label = { Text("Tous") },
+                            leadingIcon = if (selectedGroups == null) {
+                                { Icon(Icons.Default.Check, null, Modifier.size(16.dp)) }
+                            } else null
                         )
                     }
 
                     // Puces pour chaque groupe
                     items(allGroups.filterNotNull()) { group ->
+                        val isSelected = selectedGroups?.contains(group) == true
+
                         FilterChip(
-                            selected = selectedGroup == group,
+                            selected = isSelected,
                             onClick = {
-                                // Si on clique sur le groupe déjà sélectionné, on désélectionne
-                                selectedGroup = if (selectedGroup == group) null else group
+                                selectedGroups = if (selectedGroups == null) {
+                                    // Cas 1 : On passe de "Tous" à "Ce groupe uniquement"
+                                    listOf(group)
+                                } else if (isSelected) {
+                                    // Cas 2 : On retire le groupe
+                                    val newList = selectedGroups!! - group
+                                    // Si la liste devient vide, on repasse à "Tous" (null)
+                                    if (newList.isEmpty()) null else newList
+                                } else {
+                                    // Cas 3 : On ajoute un groupe à la sélection existante
+                                    selectedGroups!! + group
+                                }
                             },
-                            label = { Text(group) } // Ici 'group' est garanti non-null grâce au filtre
+                            label = { Text(group) },
+                            leadingIcon = if (isSelected) {
+                                { Icon(Icons.Default.Check, null, Modifier.size(16.dp)) }
+                            } else null
                         )
                     }
                 }
 
-                // Bouton pour fermer ou réinitialiser
+                // Boutons bas de page
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                     TextButton(onClick = {
                         minAltitude = 0f
-                        selectedGroup = null
+                        selectedGroups = null
                     }) {
                         Text("Réinitialiser")
                     }
