@@ -20,8 +20,12 @@ class SummitViewModel(private val dao: SummitDao) : ViewModel() {
         }
     }
 
-    fun getGroups() {
+    fun getSummitById(id: Int): Flow<SummitEntity> = dao.getSummitById(id)
 
+    fun updateSummit(summit: SummitEntity) {
+        viewModelScope.launch {
+            dao.insertOrUpdate(summit)
+        }
     }
 
     fun logSummits() {

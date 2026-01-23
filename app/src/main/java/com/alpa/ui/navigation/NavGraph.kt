@@ -39,7 +39,11 @@ fun AppNavHost(
         composable(Screen.Home.route) { HomeScreen(viewModel = viewModel) }
         composable(Screen.SummitList.route) { SummitsListScreen( viewModel = viewModel,onNavigateToAddSummit = {
             navController.navigate(Screen.AddSummit.route)
-        }) }
+        },
+            onNavigateToDetail = { summitId ->
+                navController.navigate("detail/$summitId")
+            }
+        ) }
         //composable(Screen.Profile.route) { SummitDetailScreen { navController.popBackStack() } }
         composable(Screen.Profile.route) { TestScreen(viewModel = viewModel, onAddSummitClick = {
             navController.navigate(Screen.AddSummit.route)
@@ -49,5 +53,13 @@ fun AppNavHost(
             onSummitAdded = { name, altitude, group ->  },
             viewModel = viewModel
         ) }
+        composable("detail/{summitId}") { backStackEntry ->
+            val summitId = backStackEntry.arguments?.getString("summitId")?.toIntOrNull() ?: 0
+            SummitDetailScreen(
+                summitId = summitId,
+                viewModel = viewModel,
+                onBack = { navController.popBackStack() }
+            )
+        }
     }
 }

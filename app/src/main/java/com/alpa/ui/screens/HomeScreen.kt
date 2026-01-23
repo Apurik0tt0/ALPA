@@ -29,6 +29,15 @@ import java.time.format.DateTimeFormatter
 
 // On réutilise les modèles définis précédemment (Summit)
 // Assurez-vous d'avoir accès à 'initialSummits' ici.
+
+data class Summit(
+    val id: String,
+    val name: String,
+    val altitude: Int,
+    val groupName: String?,
+    val isValidated: Boolean,
+    val validationDate: LocalDate? = null
+)
 val initialSummits = listOf(
     Summit("1", "Mont Blanc", 4807, "Alpes", true, LocalDate.of(2022, 7, 15)),
     Summit("2", "Dôme du Goûter", 4304, "Alpes", true, LocalDate.of(2022, 7, 14)),

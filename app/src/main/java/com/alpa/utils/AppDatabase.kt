@@ -1,9 +1,16 @@
 package com.alpa.utils
 
 import android.content.Context
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.DirectionsWalk
+import androidx.compose.material.icons.filled.DirectionsBike
+import androidx.compose.material.icons.filled.DownhillSkiing
+import androidx.compose.material.icons.filled.MoreHoriz
+import androidx.compose.material.icons.filled.Terrain
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.room.*
 import androidx.sqlite.db.SupportSQLiteDatabase // Nécessaire pour le Callback
-import com.alpa.ui.screens.TransportMode
+
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -62,6 +69,14 @@ class Converters {
 // ==========================================
 // 2. ENTITY
 // ==========================================
+enum class TransportMode(val label: String, val icon: ImageVector) {
+    HIKING("Randonnée", Icons.AutoMirrored.Filled.DirectionsWalk),
+    SKI_TOURING("Ski de Rando", Icons.Default.DownhillSkiing),
+    MTB("VTT", Icons.Default.DirectionsBike),
+    CLIMBING("Alpinisme", Icons.Default.Terrain),
+    OTHER("Autre", Icons.Default.MoreHoriz)
+}
+
 @Entity(tableName = "summits")
 @Serializable
 data class SummitEntity(
@@ -93,6 +108,9 @@ interface SummitDao {
 
     @Query("SELECT DISTINCT groupName FROM summits ORDER BY groupName ASC")
     fun getAllGroups(): Flow<List<String>>
+
+    @Query("SELECT * FROM summits WHERE id = :id")
+    fun getSummitById(id: Int): Flow<SummitEntity>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertOrUpdate(summit: SummitEntity)

@@ -30,7 +30,8 @@ enum class FilterType { ALL, VALIDATED, TODO }
 @Composable
 fun SummitsListScreen(
     viewModel: SummitViewModel,
-    onNavigateToAddSummit: () -> Unit
+    onNavigateToAddSummit: () -> Unit,
+    onNavigateToDetail: (Int) -> Unit
 ) {
     // -- 1. Données : Observation de la BDD via le ViewModel --
     val allSummits by viewModel.allSummits.collectAsState(initial = emptyList())
@@ -174,8 +175,8 @@ fun SummitsListScreen(
                                     if (isSelected) selectedIds.remove(summit.id)
                                     else selectedIds.add(summit.id)
                                 } else {
-                                    // Action click normal (ex: navigation vers détail)
-                                    // onNavigateToDetail(summit.id)
+                                    // Action click normal
+                                    onNavigateToDetail(summit.id)
                                 }
                             },
                             onLongClick = {
