@@ -118,9 +118,7 @@ fun SummitDetailScreen(
                         name = editName, onNameChange = { editName = it },
                         altitude = editAltitude, onAltitudeChange = { editAltitude = it },
                         group = editGroup, onGroupChange = { editGroup = it },
-                        notes = editNotes, onNotesChange = { editNotes = it },
-                        selectedModes = editModes, // On passe la liste
-                        onModesChange = { editModes = it } // Callback liste mise à jour
+                        notes = editNotes, onNotesChange = { editNotes = it }
                     )
                 } else {
                     // --- MODE VUE ---
@@ -267,8 +265,6 @@ fun EditForm(
     altitude: String, onAltitudeChange: (String) -> Unit,
     group: String, onGroupChange: (String) -> Unit,
     notes: String, onNotesChange: (String) -> Unit,
-    selectedModes: List<TransportMode>, // Liste entrante
-    onModesChange: (List<TransportMode>) -> Unit // Callback liste sortante
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         OutlinedTextField(
@@ -294,38 +290,6 @@ fun EditForm(
         )
 
         Text("Moyens de réalisation (Multiple)", style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(top = 8.dp))
-
-        // Sélection Multiple via FlowRow
-        FlowRow(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            TransportMode.values().forEach { mode ->
-                // Vérifie si ce mode est dans la liste sélectionnée
-                val isSelected = selectedModes.contains(mode)
-
-                FilterChip(
-                    selected = isSelected,
-                    onClick = {
-                        // Logique de bascule (Toggle) pour la liste
-                        val newList = if (isSelected) {
-                            selectedModes - mode // Retirer
-                        } else {
-                            selectedModes + mode // Ajouter
-                        }
-                        onModesChange(newList)
-                    },
-                    label = { Text(mode.label) },
-                    leadingIcon = {
-                        if (isSelected) {
-                            Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(18.dp))
-                        } else {
-                            Icon(mode.icon, contentDescription = null, modifier = Modifier.size(18.dp))
-                        }
-                    }
-                )
-            }
-        }
 
         OutlinedTextField(
             value = notes,
