@@ -1,11 +1,17 @@
 package com.alpa.ui.screens
 
+import android.util.Log
+import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
@@ -14,16 +20,22 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
+
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.alpa.utils.SummitViewModel
+import androidx.compose.ui.text.input.TextFieldValue
+
 import com.alpa.utils.SummitEntity
 
 // On crée une petite classe de données temporaire pour les résultats de la "fausse" recherche API
@@ -37,7 +49,7 @@ fun AddSummitScreen(
     viewModel: SummitViewModel
 ) {
     // État de l'onglet sélectionné (0 = Manuel, 1 = Carte)
-    var selectedTabIndex by remember { mutableIntStateOf(0) }
+    var selectedTabIndex by rememberSaveable { mutableIntStateOf(0) }
     val tabs = listOf("Manuel", "Carte")
 
     Scaffold(
@@ -86,15 +98,25 @@ fun AddSummitScreen(
 // --- CONTENU ONGLET 1 : SAISIE MANUELLE ---
 @Composable
 fun ManualEntryContent(onAddClick: (String, Int, String?) -> Unit, viewModel: SummitViewModel) {
-    var name by remember { mutableStateOf("") }
-    var altitude by remember { mutableStateOf("") }
-    var group by remember { mutableStateOf("") }
+    var name by rememberSaveable { mutableStateOf("") }
+    var altitude by rememberSaveable { mutableStateOf("") }
+    var selectedGroupName by rememberSaveable { mutableStateOf("") }
+    var locationName by rememberSaveable { mutableStateOf("") }
+    var latitude by rememberSaveable { mutableStateOf("") }
+    var longitude by rememberSaveable { mutableStateOf("") }
 
     // Récupération des groupes existants depuis le ViewModel
     val existingGroups by viewModel.allGroups.collectAsState(initial = emptyList())
-    var expanded by remember { mutableStateOf(false) }
 
-    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+    val scrollState = rememberScrollState()
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize() // Prend toute la place
+            .verticalScroll(scrollState) // Rend le contenu scrollable
+            .padding(bottom = 16.dp), // Évite que le bouton colle au bord
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
         Text("Informations du sommet", style = MaterialTheme.typography.titleMedium)
 
         OutlinedTextField(
@@ -114,20 +136,52 @@ fun ManualEntryContent(onAddClick: (String, Int, String?) -> Unit, viewModel: Su
             singleLine = true
         )
 
-//        OutlinedTextField(
-//            value = group,
-//            onValueChange = { group = it },
-//            label = { Text("Groupe / Massif (Optionnel)") },
-//            modifier = Modifier.fillMaxWidth(),
-//            singleLine = true
-//        )
+        // Champ Lieux (Simple texte)
+        OutlinedTextField(
+            value = locationName,
+            onValueChange = { locationName = it },
+            label = { Text("Lieu") },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true
+        )
+
+        // Champs Latitude et Longitude côte à côte
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            OutlinedTextField(
+                value = latitude,
+                onValueChange = { input ->
+                    // Autorise les chiffres, le point décimal et le signe moins
+                    if (input.isEmpty() || input.matches(Regex("""^-?\d*\.?\d*$"""))) {
+                        latitude = input
+                    }
+                },
+                label = { Text("Latitude") },
+                modifier = Modifier.weight(1f),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                singleLine = true
+            )
+
+            OutlinedTextField(
+                value = longitude,
+                onValueChange = { input ->
+                    if (input.isEmpty() || input.matches(Regex("""^-?\d*\.?\d*$"""))) {
+                        longitude = input
+                    }
+                },
+                label = { Text("Longitude") },
+                modifier = Modifier.weight(1f),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                singleLine = true
+            )
+        }
 
         GroupSelector(
             existingGroups = existingGroups,
-            onGroupSelected = { selectedName ->
-                // Si c'est un nouveau nom, votre ViewModel peut décider
-                // de l'ajouter en base ou simplement de l'utiliser.
-                //viewModel.onGroupPicked(selectedName)
+            onGroupSelected = { name ->
+                selectedGroupName = name
             }
         )
 
@@ -136,7 +190,8 @@ fun ManualEntryContent(onAddClick: (String, Int, String?) -> Unit, viewModel: Su
         Button(
             onClick = {
                 if (name.isNotBlank() && altitude.isNotBlank()) {
-                    onAddClick(name, altitude.toInt(), group.ifBlank { null })
+                    onAddClick(name, altitude.toInt(), selectedGroupName.ifBlank { null })
+                    Log.d("D","$name, $altitude, $selectedGroupName")
                 }
             },
             modifier = Modifier.fillMaxWidth(),
@@ -149,47 +204,55 @@ fun ManualEntryContent(onAddClick: (String, Int, String?) -> Unit, viewModel: Su
     }
 }
 
+
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun GroupSelector(
     existingGroups: List<String>,
     onGroupSelected: (String) -> Unit
 ) {
-    var expanded by remember { mutableStateOf(false) }
     var textValue by remember { mutableStateOf("") }
+    var expanded by remember { mutableStateOf(false) }
+    val focusManager = LocalFocusManager.current
 
-    // On filtre les suggestions basées sur la saisie de l'utilisateur
     val filteredGroups = existingGroups.filter {
         it.contains(textValue, ignoreCase = true)
     }
 
-    Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
-        ExposedDropdownMenuBox(
-            expanded = expanded,
-            onExpandedChange = { expanded = !expanded }
-        ) {
-            OutlinedTextField(
-                value = textValue,
-                onValueChange = {
-                    textValue = it
-                    expanded = true
-                },
-                label = { Text("Groupe (Sélectionner ou Créer)") },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .menuAnchor(),
-                trailingIcon = {
-                    ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded)
-                },
-                colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors()
-            )
+    ExposedDropdownMenuBox(
+        expanded = expanded,
+        onExpandedChange = { expanded = it } // On laisse Material gérer l'ouverture standard
+    ) {
+        OutlinedTextField(
+            value = textValue,
+            onValueChange = {
+                textValue = it
+                // On n'ouvre le menu que s'il y a quelque chose à montrer
+                expanded = it.isNotEmpty()
+                onGroupSelected(it)
+            },
+            label = { Text("Sélectionner un groupe") },
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+            keyboardActions = KeyboardActions(
+                onDone = {
+                    expanded = false
+                    focusManager.clearFocus()
+                }
+            ),
+            modifier = Modifier
+                .menuAnchor(type = MenuAnchorType.PrimaryEditable, enabled = true) // Très important pour lier la popup au champ
+                .fillMaxWidth()
+        )
 
-            // Fenêtre de sélection
+        // On ne dessine le menu que s'il y a des suggestions
+        if (filteredGroups.isNotEmpty()) {
             ExposedDropdownMenu(
                 expanded = expanded,
                 onDismissRequest = { expanded = false }
             ) {
-                // 1. Affichage des groupes existants filtrés
                 filteredGroups.forEach { group ->
                     DropdownMenuItem(
                         text = { Text(group) },
@@ -197,31 +260,16 @@ fun GroupSelector(
                             textValue = group
                             expanded = false
                             onGroupSelected(group)
-                        }
-                    )
-                }
-
-                // 2. Option de création si le texte n'existe pas déjà
-                if (textValue.isNotEmpty() && !existingGroups.contains(textValue)) {
-                    DropdownMenuItem(
-                        text = {
-                            Text(
-                                text = "Ajouter \"$textValue\"",
-                                color = MaterialTheme.colorScheme.primary,
-                                fontWeight = FontWeight.Bold
-                            )
+                            focusManager.clearFocus()
                         },
-                        leadingIcon = { Icon(Icons.Default.Add, contentDescription = null) },
-                        onClick = {
-                            expanded = false
-                            onGroupSelected(textValue)
-                        }
+                        contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding
                     )
                 }
             }
         }
     }
 }
+
 
 // --- CONTENU ONGLET 2 : CARTE & RECHERCHE ---
 @Composable
