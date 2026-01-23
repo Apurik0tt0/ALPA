@@ -36,7 +36,9 @@ fun AppNavHost(
         startDestination = Screen.Home.route,
         modifier = modifier
     ) {
-        composable(Screen.Home.route) { HomeScreen(viewModel = viewModel) }
+        composable(Screen.Home.route) { HomeScreen(viewModel = viewModel, onSummitClick = { summitId ->
+            navController.navigate("detail/$summitId")
+        }) }
         composable(Screen.SummitList.route) { SummitsListScreen( viewModel = viewModel,onNavigateToAddSummit = {
             navController.navigate(Screen.AddSummit.route)
         },
@@ -50,7 +52,7 @@ fun AppNavHost(
         }) }
         composable(Screen.AddSummit.route) { AddSummitScreen(
             onBack = { navController.popBackStack() },
-            onSummitAdded = { name, altitude, group ->  },
+            onSummitAdded = { navController.popBackStack() },
             viewModel = viewModel
         ) }
         composable("detail/{summitId}") { backStackEntry ->

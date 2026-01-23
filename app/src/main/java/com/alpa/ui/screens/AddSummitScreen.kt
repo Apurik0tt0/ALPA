@@ -1,6 +1,7 @@
 package com.alpa.ui.screens
 
 import android.util.Log
+import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -25,6 +26,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -41,7 +43,7 @@ data class ApiResult(val name: String, val lat: Double, val lon: Double, val alt
 @Composable
 fun AddSummitScreen(
     onBack: () -> Unit,
-    onSummitAdded: (String, Int, String?) -> Unit, // Callback pour valider l'ajout (Nom, Alt, Groupe)
+    onSummitAdded: () -> Unit, // Callback pour valider l'ajout (Nom, Alt, Groupe)
     viewModel: SummitViewModel
 ) {
     // État de l'onglet sélectionné (0 = Manuel, 1 = Carte)
@@ -93,7 +95,7 @@ fun AddSummitScreen(
 
 // --- CONTENU ONGLET 1 : SAISIE MANUELLE ---
 @Composable
-fun ManualEntryContent(onAddClick: (String, Int, String?) -> Unit, viewModel: SummitViewModel) {
+fun ManualEntryContent(onAddClick: () -> Unit, viewModel: SummitViewModel) {
     var name by rememberSaveable { mutableStateOf("") }
     var altitude by rememberSaveable { mutableStateOf("") }
     var selectedGroupName by rememberSaveable { mutableStateOf("") }
@@ -103,7 +105,7 @@ fun ManualEntryContent(onAddClick: (String, Int, String?) -> Unit, viewModel: Su
 
     // Récupération des groupes existants depuis le ViewModel
     val existingGroups by viewModel.allGroups.collectAsState(initial = emptyList())
-
+    val context = LocalContext.current
     val scrollState = rememberScrollState()
 
     Column(
@@ -186,9 +188,15 @@ fun ManualEntryContent(onAddClick: (String, Int, String?) -> Unit, viewModel: Su
         Button(
             onClick = {
                 if (name.isNotBlank() && altitude.isNotBlank()) {
-                    onAddClick(name, altitude.toInt(), selectedGroupName.ifBlank { null })
                     Log.d("D","$name, $altitude, $selectedGroupName")
-                    viewModel.addSummit(SummitEntity(name = name, altitude = altitude.toIntOrNull(), groupName = selectedGroupName, location = locationName, latitude = latitude.toDoubleOrNull(), longitude = longitude.toDoubleOrNull()))
+                    viewModel.addSummit(SummitEntity(name = name, altitude = altitude.toIntOrNull(), groupName = (selectedGroupName.ifBlank { null }), location = locationName, latitude = latitude.toDoubleOrNull(), longitude = longitude.toDoubleOrNull()))
+                    //Ajouter toast et retour à la liste
+                    Toast.makeText(
+                        context,
+                        "Sommet \"$name\" ajouté !",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                    onAddClick()
                 }
             },
             modifier = Modifier.fillMaxWidth(),
@@ -213,8 +221,9 @@ fun GroupSelector(
     var expanded by remember { mutableStateOf(false) }
     val focusManager = LocalFocusManager.current
 
-    val filteredGroups = existingGroups.filter {
-        it.contains(textValue, ignoreCase = true)
+    val filteredGroups = existingGroups.filter { group ->
+        //?. pour ne pas crasher si group est null
+        group?.contains(textValue, ignoreCase = true) == true
     }
 
     ExposedDropdownMenuBox(
@@ -270,7 +279,7 @@ fun GroupSelector(
 
 // --- CONTENU ONGLET 2 : CARTE & RECHERCHE ---
 @Composable
-fun MapSearchContent(onAddFromApi: (String, Int, String?) -> Unit) {
+fun MapSearchContent(onAddFromApi: () -> Unit) {
     var searchRadius by remember { mutableFloatStateOf(5f) } // 5km par défaut
     var isSearching by remember { mutableStateOf(false) }
 
@@ -353,7 +362,8 @@ fun MapSearchContent(onAddFromApi: (String, Int, String?) -> Unit) {
                         trailingContent = {
                             IconButton(onClick = {
                                 // Ajout direct depuis la liste
-                                onAddFromApi(result.name, result.altitude, "Import Carte")
+                                // Retour sur la liste
+                                onAddFromApi()
                             }) {
                                 Icon(Icons.Default.Add, contentDescription = "Ajouter")
                             }

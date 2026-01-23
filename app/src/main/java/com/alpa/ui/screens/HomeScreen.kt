@@ -1,6 +1,7 @@
 package com.alpa.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -13,8 +14,7 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.EmojiEvents
 import androidx.compose.material.icons.outlined.Flag
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -23,60 +23,50 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.alpa.utils.SummitEntity
 import com.alpa.utils.SummitViewModel
-import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 
-// On réutilise les modèles définis précédemment (Summit)
-// Assurez-vous d'avoir accès à 'initialSummits' ici.
-
-data class Summit(
-    val id: String,
-    val name: String,
-    val altitude: Int,
-    val groupName: String?,
-    val isValidated: Boolean,
-    val validationDate: LocalDate? = null
-)
-val initialSummits = listOf(
-    Summit("1", "Mont Blanc", 4807, "Alpes", true, LocalDate.of(2022, 7, 15)),
-    Summit("2", "Dôme du Goûter", 4304, "Alpes", true, LocalDate.of(2022, 7, 14)),
-    Summit("3", "Puy de Dôme", 1465, "Massif Central", true, LocalDate.of(2021, 5, 20)),
-    Summit("4", "Puy de Sancy", 1885, "Massif Central", false),
-    Summit("5", "Vignemale", 3298, "Pyrénées", false),
-    Summit("6", "Pic du Midi", 2877, "Pyrénées", false),
-    Summit("7", "Everest", 8848, "Himalaya", false),
-    Summit("8", "Kilimanjaro", 5895, null, false), // Sans groupe
-    Summit("9", "Fuji", 3776, null, true, LocalDate.of(2019, 8, 1))
-)
 @Composable
-fun HomeScreen(viewModel: SummitViewModel) {
-    // 1. Préparation des données (Logique métier simple)
-    val summits = remember { initialSummits } // On reprend la liste fictive
+fun HomeScreen(
+    viewModel: SummitViewModel,
+    onSummitClick: (Int) -> Unit // Callback pour naviguer vers les détails
+) {
+    // 1. Observation de la Base de Données
+    val allSummits by viewModel.allSummits.collectAsState(initial = emptyList())
 
-    val validatedSummits = summits.filter { it.isValidated }
-    val todoSummits = summits.filter { !it.isValidated }
+    // 2. Calculs des données (Recalculés uniquement si 'allSummits' change)
+    val validatedSummits = remember(allSummits) { allSummits.filter { it.isValidated } }
+    val todoSummits = remember(allSummits) { allSummits.filter { !it.isValidated } }
 
-    // Calcul des Stats
-    val totalAltitude = validatedSummits.sumOf { it.altitude }
+    // --- Statistiques ---
+    // Note: altitude est Int? dans l'Entity, on utilise ?: 0 pour éviter les crashs
+    val totalAltitude = remember(validatedSummits) { validatedSummits.sumOf { it.altitude ?: 0 } }
     val summitsCount = validatedSummits.size
-    // Statistique "Fun" : Combien d'Everest (8848m) on a grimpé au total
-    val everestRatio = (totalAltitude.toDouble() / 8848.0)
-    val formattedEverest = String.format("%.1f", everestRatio)
 
-    // Suggestion : Prendre un sommet "À faire" au hasard ou le premier
-    val suggestedSummit = remember(todoSummits) { todoSummits.shuffled().firstOrNull() }
+    // Ratio Everest (8848m)
+    val everestRatio = remember(totalAltitude) {
+        if (totalAltitude > 0) String.format("%.1f", totalAltitude.toDouble() / 8848.0) else "0.0"
+    }
 
-    // Derniers réalisés : Triés par date (du plus récent au plus vieux)
-    val recentSummits = validatedSummits
-        .sortedByDescending { it.validationDate }
-        .take(5)
+    // --- Suggestion (Aléatoire parmi "À faire") ---
+    val suggestedSummit = remember(todoSummits) {
+        if (todoSummits.isNotEmpty()) todoSummits.shuffled().first() else null
+    }
 
-    // 2. Structure de l'écran
+    // --- Derniers réalisés (Tri par date de validation décroissante) ---
+    val recentSummits = remember(validatedSummits) {
+        validatedSummits
+            .filter { it.validationDate != null }
+            .sortedByDescending { it.validationDate }
+            .take(5)
+    }
+
+    // 3. Structure de l'écran
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .verticalScroll(rememberScrollState()) // Tout l'écran scroll verticalement
+            .verticalScroll(rememberScrollState())
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(24.dp)
     ) {
@@ -84,25 +74,26 @@ fun HomeScreen(viewModel: SummitViewModel) {
         HeaderSection()
 
         // --- Statistiques ---
-        StatsSection(totalAltitude, summitsCount, formattedEverest)
+        StatsSection(totalAltitude, summitsCount, everestRatio)
 
         // --- Suggestion (Call to Action) ---
+        // S'affiche uniquement s'il y a des sommets à faire
         if (suggestedSummit != null) {
-            SuggestionCard(suggestedSummit)
+            SuggestionCard(summit = suggestedSummit, onClick = { onSummitClick(suggestedSummit.id) })
+        } else if (allSummits.isEmpty()) {
+            // Message si la base est vide
+            EmptyStateCard()
         }
 
         // --- Dernières ascensions ---
         if (recentSummits.isNotEmpty()) {
-            RecentActivitySection(recentSummits)
+            RecentActivitySection(summits = recentSummits, onSummitClick = onSummitClick)
         }
 
-        Button(onClick = {
-            // Code à exécuter lors du clic
-            viewModel.logSummits()
-        }) {
-            // Contenu à l'intérieur du bouton (généralement du texte)
-            Text(text = "Cliquez ici")
-        }
+        // Bouton de debug (Optionnel)
+        /*Button(onClick = { viewModel.logSummits() }) {
+            Text(text = "Log Debug BDD")
+        }*/
     }
 }
 
@@ -128,16 +119,6 @@ fun HeaderSection() {
                 color = MaterialTheme.colorScheme.primary
             )
         }
-        // Avatar fictif ou icône utilisateur
-//        Box(
-//            modifier = Modifier
-//                .size(48.dp)
-//                .clip(CircleShape)
-//                .background(MaterialTheme.colorScheme.primaryContainer),
-//            contentAlignment = Alignment.Center
-//        ) {
-//            Icon(Icons.Default.Person, contentDescription = "Profil")
-//        }
     }
 }
 
@@ -204,13 +185,14 @@ fun StatCard(modifier: Modifier = Modifier, icon: ImageVector, value: String, la
 }
 
 @Composable
-fun SuggestionCard(summit: Summit) {
+fun SuggestionCard(summit: SummitEntity, onClick: () -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text("Prochain défi ?", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
 
         Card(
             elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxWidth(),
+            onClick = onClick // La carte entière est cliquable
         ) {
             Box(
                 modifier = Modifier
@@ -237,7 +219,7 @@ fun SuggestionCard(summit: Summit) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Default.Place, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
                         Text(
-                            text = "${summit.groupName ?: "Inconnu"} • ${summit.altitude}m",
+                            text = "${summit.groupName ?: "Inconnu"} • ${summit.altitude ?: "?"}m",
                             style = MaterialTheme.typography.bodyMedium,
                             color = Color.White.copy(alpha = 0.9f)
                         )
@@ -245,7 +227,7 @@ fun SuggestionCard(summit: Summit) {
                 }
 
                 Button(
-                    onClick = { /* Naviguer vers détail */ },
+                    onClick = onClick,
                     modifier = Modifier.align(Alignment.TopEnd).padding(12.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = Color.Black),
                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
@@ -258,23 +240,43 @@ fun SuggestionCard(summit: Summit) {
 }
 
 @Composable
-fun RecentActivitySection(summits: List<Summit>) {
+fun EmptyStateCard() {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+    ) {
+        Column(
+            modifier = Modifier.padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Text("Aucun sommet enregistré", fontWeight = FontWeight.Bold)
+            Spacer(modifier = Modifier.height(8.dp))
+            Text("Commencez par ajouter votre premier sommet via l'onglet Liste !")
+        }
+    }
+}
+
+@Composable
+fun RecentActivitySection(summits: List<SummitEntity>, onSummitClick: (Int) -> Unit) {
     Text("Dernières réussites", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
 
     LazyRow(
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         contentPadding = PaddingValues(horizontal = 4.dp)
     ) {
-        items(summits) { summit ->
-            RecentSummitItem(summit)
+        items(summits, key = { it.id }) { summit ->
+            RecentSummitItem(summit = summit, onClick = { onSummitClick(summit.id) })
         }
     }
 }
 
 @Composable
-fun RecentSummitItem(summit: Summit) {
+fun RecentSummitItem(summit: SummitEntity, onClick: () -> Unit) {
     Card(
-        modifier = Modifier.width(140.dp),
+        modifier = Modifier
+            .width(140.dp)
+            .clickable { onClick() },
         shape = RoundedCornerShape(16.dp)
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
@@ -286,7 +288,7 @@ fun RecentSummitItem(summit: Summit) {
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = summit.name.take(1),
+                    text = summit.name.take(1).uppercase(),
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.primary
                 )
@@ -297,11 +299,14 @@ fun RecentSummitItem(summit: Summit) {
                 style = MaterialTheme.typography.titleSmall,
                 maxLines = 1
             )
-            Text(
-                text = summit.validationDate?.format(DateTimeFormatter.ofPattern("dd MMM")) ?: "",
-                style = MaterialTheme.typography.bodySmall,
-                color = Color.Gray
-            )
+            // Affichage de la date (si présente)
+            summit.validationDate?.let { date ->
+                Text(
+                    text = date.format(DateTimeFormatter.ofPattern("dd MMM yyyy")),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color.Gray
+                )
+            }
         }
     }
 }
