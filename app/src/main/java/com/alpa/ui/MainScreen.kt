@@ -19,7 +19,7 @@ import com.alpa.utils.SummitViewModel
 @Composable
 fun MainScreen(viewModel : SummitViewModel) {
     val navController = rememberNavController()
-    val items = listOf(Screen.Home, Screen.SummitList, Screen.Profile)
+    val items = listOf(Screen.Home, Screen.SummitList, Screen.Map)
 
     Scaffold(
         bottomBar = {
