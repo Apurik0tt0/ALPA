@@ -1,6 +1,5 @@
 package com.alpa.ui.screens
 
-import android.util.Log
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
@@ -18,88 +17,55 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.alpa.utils.SummitEntity
+import com.alpa.utils.SummitViewModel
 import java.time.LocalDate
 
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import okhttp3.OkHttpClient
-import okhttp3.Request
-
-import org.json.JSONObject
-
-// --- 1. MODÈLES DE DONNÉES ---
-
-
-
+// --- ENUMS ---
 enum class FilterType { ALL, VALIDATED, TODO }
 
-// --- 2. DONNÉES DE TEST (MOCK) ---
-
-val initialSummits = listOf(
-    Summit("1", "Mont Blanc", 4807, "Alpes", true, LocalDate.of(2022, 7, 15)),
-    Summit("2", "Dôme du Goûter", 4304, "Alpes", true, LocalDate.of(2022, 7, 14)),
-    Summit("3", "Puy de Dôme", 1465, "Massif Central", true, LocalDate.of(2021, 5, 20)),
-    Summit("4", "Puy de Sancy", 1885, "Massif Central", false),
-    Summit("5", "Vignemale", 3298, "Pyrénées", false),
-    Summit("6", "Pic du Midi", 2877, "Pyrénées", false),
-    Summit("7", "Everest", 8848, "Himalaya", false),
-    Summit("8", "Kilimanjaro", 5895, null, false), // Sans groupe
-    Summit("9", "Fuji", 3776, null, true, LocalDate.of(2019, 8, 1))
-)
-
-//stockage local des donnés récupérées par appel à l'API
-data class ApiSummit(
-    val name: String,
-    val altitude: Int?,       // certains sommets n'ont pas d'altitude dans OSM
-    val lat: Double?,
-    val lon: Double?
-)
-
-// --- 3. ÉCRAN PRINCIPAL ---
+// --- ÉCRAN PRINCIPAL ---
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
-fun SummitsListScreen( onNavigateToAddSummit: () -> Unit ) {
-    // -- État des données --
-    // On utilise `toMutableStateList` pour pouvoir modifier la liste facilement
-    val summits = remember { initialSummits.toMutableStateList() }
+fun SummitsListScreen(
+    viewModel: SummitViewModel,
+    onNavigateToAddSummit: () -> Unit
+) {
+    // -- 1. Données : Observation de la BDD via le ViewModel --
+    val allSummits by viewModel.allSummits.collectAsState(initial = emptyList())
 
-    // -- État de l'interface --
+    // -- 2. État de l'interface --
     var currentFilter by remember { mutableStateOf(FilterType.ALL) }
 
-    // Liste des IDs des sommets sélectionnés (Mode Edit)
-    val selectedIds = remember { mutableStateListOf<String>() }
+    // Liste des IDs sélectionnés (Mode Edit). On utilise Int pour l'ID (comme défini dans SummitEntity)
+    val selectedIds = remember { mutableStateListOf<Int>() }
     val isSelectionMode = selectedIds.isNotEmpty()
 
-    // Liste des groupes repliés (cachés)
+    // Liste des groupes repliés
     val collapsedGroups = remember { mutableStateListOf<String?>() }
 
     // État pour la modale de déplacement de groupe
     var showMoveGroupDialog by remember { mutableStateOf(false) }
 
-    // -- Logique de filtrage et de regroupement --
-    val filteredSummits = remember(summits, currentFilter) {
+    // -- 3. Logique de filtrage et de regroupement --
+    val filteredSummits = remember(allSummits, currentFilter) {
         when (currentFilter) {
-            FilterType.ALL -> summits
-            FilterType.VALIDATED -> summits.filter { it.isValidated }
-            FilterType.TODO -> summits.filter { !it.isValidated }
+            FilterType.ALL -> allSummits
+            FilterType.VALIDATED -> allSummits.filter { it.isValidated }
+            FilterType.TODO -> allSummits.filter { !it.isValidated }
         }
     }
 
-    // On transforme la liste plate en Map : Groupe -> Liste de sommets
+    // Transformation en Map : Groupe -> Liste de sommets
     val groupedSummits = remember(filteredSummits) {
-        filteredSummits.groupBy { it.groupName ?: "Sans groupe" }
+        filteredSummits.groupBy { it.groupName ?: "Sans groupe" }.toSortedMap()
     }
-
-    //TEST API: variables pour afficher
-    var apiResult by remember { mutableStateOf<List<ApiSummit>>(emptyList()) }
-    var isLoading by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
             if (isSelectionMode) {
-                // TopBar MODE SÉLECTION
+                // --- TopBar MODE SÉLECTION ---
                 TopAppBar(
                     title = { Text("${selectedIds.size} sélectionné(s)") },
                     colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
@@ -109,11 +75,10 @@ fun SummitsListScreen( onNavigateToAddSummit: () -> Unit ) {
                         }
                     },
                     actions = {
-                        // Action: Dégrouper
+                        // Action: Dégrouper (Mettre le groupe à null)
                         IconButton(onClick = {
-                            summits.replaceAll { if (it.id in selectedIds) it.copy(groupName = null) else it }
+                            //viewModel.updateGroupForList(selectedIds.toList(), null)
                             selectedIds.clear()
-                            Log.d("SummitsListScreen", "Dégrouper")
                         }) {
                             Icon(Icons.Default.LinkOff, "Dégrouper")
                         }
@@ -123,7 +88,7 @@ fun SummitsListScreen( onNavigateToAddSummit: () -> Unit ) {
                         }
                         // Action: Supprimer
                         IconButton(onClick = {
-                            summits.removeIf { it.id in selectedIds }
+                            //viewModel.deleteSummits(selectedIds.toList())
                             selectedIds.clear()
                         }) {
                             Icon(Icons.Default.Delete, "Supprimer")
@@ -131,7 +96,7 @@ fun SummitsListScreen( onNavigateToAddSummit: () -> Unit ) {
                     }
                 )
             } else {
-                // TopBar MODE NORMAL
+                // --- TopBar MODE NORMAL ---
                 Column {
                     TopAppBar(
                         title = { Text("Mes Sommets") },
@@ -141,9 +106,11 @@ fun SummitsListScreen( onNavigateToAddSummit: () -> Unit ) {
                             }
                         }
                     )
-                    // Barre de filtre simple
+                    // Barre de filtre
                     Row(
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 8.dp),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         FilterChip(
@@ -167,74 +134,17 @@ fun SummitsListScreen( onNavigateToAddSummit: () -> Unit ) {
         }
     ) { padding ->
 
-        //colonne à modifier
-        //teste les appels de sommets sur la carte
-
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp)
-                .background(
-                    MaterialTheme.colorScheme.surfaceVariant,
-                    shape = MaterialTheme.shapes.medium
-                )
-                .padding(16.dp)
-                .padding(top = 120.dp), // Ajoute un padding en haut pour laisser un espace
-        ) {
-            Text(
-                "API Overpass – Zone de test",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold
-            )
-
-            Spacer(Modifier.height(8.dp))
-
-            Button(
-                onClick = {
-                    isLoading = true
-                    apiResult = emptyList()
-                    testOverpassCall { result ->
-                        apiResult = result
-                        isLoading = false
-                    }
-                }
-            ) {
-                Text("Tester API (sommets autour du Mont Blanc)")
-            }
-
-            Spacer(Modifier.height(8.dp))
-
-            if (isLoading) {
-                CircularProgressIndicator(modifier = Modifier.size(24.dp))
-            } else {
-                Column {
-                    if (apiResult.isEmpty()) {
-                        Text("Aucun sommet trouvé")
-                    } else {
-                        apiResult.forEach { summit ->
-                            Text(
-                                "• ${summit.name} - ${summit.altitude ?: "N/A"} m " +
-                                        "(${summit.lat}, ${summit.lon})",
-                                style = MaterialTheme.typography.bodySmall
-                            )
-                        }
-                    }
-                }
-            }
-        }
-
         // -- LISTE SCROLLABLE --
         LazyColumn(
             modifier = Modifier
                 .padding(padding)
-                .fillMaxSize()
-                .padding(top = 5000.dp), // Ajoute un padding en haut pour laisser un espace
+                .fillMaxSize(),
             contentPadding = PaddingValues(bottom = 80.dp)
         ) {
             groupedSummits.forEach { (groupName, itemsInGroup) ->
                 val isCollapsed = collapsedGroups.contains(groupName)
 
-                // En-tête de Groupe
+                // En-tête de Groupe (Sticky)
                 stickyHeader {
                     GroupHeader(
                         title = groupName,
@@ -257,21 +167,15 @@ fun SummitsListScreen( onNavigateToAddSummit: () -> Unit ) {
                             isSelected = isSelected,
                             isSelectionMode = isSelectionMode,
                             onToggleValidation = {
-                                // Mise à jour de l'état validé/non validé
-                                val index = summits.indexOf(summit)
-                                if (index != -1) {
-                                    summits[index] = summit.copy(
-                                        isValidated = !summit.isValidated,
-                                        validationDate = if (!summit.isValidated) LocalDate.now() else null
-                                    )
-                                }
+                                //viewModel.toggleValidation(summit)
                             },
                             onClick = {
                                 if (isSelectionMode) {
-                                    if (isSelected) selectedIds.remove(summit.id) else selectedIds.add(summit.id)
-                                    //if (selectedIds.isEmpty()) { /* Sortir auto du mode selection ? ou pas */ }
+                                    if (isSelected) selectedIds.remove(summit.id)
+                                    else selectedIds.add(summit.id)
                                 } else {
-                                    // Action click normal (ex: voir détails)
+                                    // Action click normal (ex: navigation vers détail)
+                                    // onNavigateToDetail(summit.id)
                                 }
                             },
                             onLongClick = {
@@ -283,15 +187,26 @@ fun SummitsListScreen( onNavigateToAddSummit: () -> Unit ) {
                     }
                 }
             }
+
+            if (filteredSummits.isEmpty()) {
+                item {
+                    Box(
+                        modifier = Modifier.fillMaxWidth().padding(32.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text("Aucun sommet trouvé", color = Color.Gray)
+                    }
+                }
+            }
         }
 
         // Dialog pour déplacer vers un groupe
         if (showMoveGroupDialog) {
             MoveToGroupDialog(
-                existingGroups = summits.mapNotNull { it.groupName }.distinct(),
+                existingGroups = allSummits.mapNotNull { it.groupName }.distinct(),
                 onDismiss = { showMoveGroupDialog = false },
                 onGroupSelected = { newGroup ->
-                    summits.replaceAll { if (it.id in selectedIds) it.copy(groupName = newGroup) else it }
+                    //viewModel.updateGroupForList(selectedIds.toList(), newGroup)
                     selectedIds.clear()
                     showMoveGroupDialog = false
                 }
@@ -300,7 +215,7 @@ fun SummitsListScreen( onNavigateToAddSummit: () -> Unit ) {
     }
 }
 
-// --- 4. COMPOSANTS UI DÉTAILLÉS ---
+// --- COMPOSANTS UI DÉTAILLÉS ---
 
 @Composable
 fun GroupHeader(
@@ -315,21 +230,27 @@ fun GroupHeader(
         modifier = Modifier.fillMaxWidth()
     ) {
         Row(
-            modifier = Modifier.padding(16.dp),
+            modifier = Modifier
+                .padding(horizontal = 16.dp, vertical = 12.dp)
+                .fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(
                 if (isCollapsed) Icons.Default.ExpandMore else Icons.Default.ExpandLess,
-                contentDescription = null
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSecondaryContainer
             )
             Spacer(modifier = Modifier.width(8.dp))
             Text(
                 text = title,
                 style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSecondaryContainer
             )
             Spacer(modifier = Modifier.weight(1f))
-            Badge { Text(count.toString()) }
+            Badge(containerColor = MaterialTheme.colorScheme.primary) {
+                Text(count.toString(), color = MaterialTheme.colorScheme.onPrimary)
+            }
         }
     }
 }
@@ -337,7 +258,7 @@ fun GroupHeader(
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun SummitItem(
-    summit: Summit,
+    summit: SummitEntity,
     isSelected: Boolean,
     isSelectionMode: Boolean,
     onToggleValidation: () -> Unit,
@@ -359,12 +280,15 @@ fun SummitItem(
                 summit.name,
                 style = if (summit.isValidated)
                     MaterialTheme.typography.bodyLarge.copy(color = Color.Gray)
-                else MaterialTheme.typography.bodyLarge
+                else MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.Medium
             )
         },
         supportingContent = {
             Column {
-                Text("${summit.altitude} m")
+                val altitudeText = if (summit.altitude != null && summit.altitude > 0) "${summit.altitude} m" else "Alt. inconnue"
+                Text(altitudeText, style = MaterialTheme.typography.bodyMedium)
+
                 if (summit.isValidated && summit.validationDate != null) {
                     Text(
                         "Validé le ${summit.validationDate}",
@@ -376,27 +300,31 @@ fun SummitItem(
         },
         leadingContent = {
             if (isSelectionMode) {
-                // En mode sélection, on affiche une Checkbox à gauche
-                Checkbox(checked = isSelected, onCheckedChange = null) // Le click est géré par le parent
+                // En mode sélection : Checkbox (click géré par le parent ListItem)
+                Checkbox(checked = isSelected, onCheckedChange = null)
             } else {
-                // En mode normal, on affiche l'icône de montagne
-                Icon(Icons.Default.Terrain, null, tint = Color.Gray)
+                // En mode normal : Icône
+                Icon(
+                    Icons.Default.Terrain,
+                    contentDescription = null,
+                    tint = if(summit.isValidated) MaterialTheme.colorScheme.primary.copy(alpha=0.6f) else Color.Gray
+                )
             }
         },
         trailingContent = {
-            // Bouton de validation rapide (seulement en mode normal)
+            // Bouton de validation rapide (masqué en mode sélection pour éviter les conflits)
             if (!isSelectionMode) {
                 IconButton(onClick = onToggleValidation) {
                     Icon(
-                        if (summit.isValidated) Icons.Outlined.CheckCircle else Icons.Outlined.Circle,
-                        contentDescription = "Valider",
-                        tint = if (summit.isValidated) MaterialTheme.colorScheme.primary else Color.Gray
+                        imageVector = if (summit.isValidated) Icons.Outlined.CheckCircle else Icons.Outlined.Circle,
+                        contentDescription = if (summit.isValidated) "Invalider" else "Valider",
+                        tint = if (summit.isValidated) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline
                     )
                 }
             }
         }
     )
-    HorizontalDivider(thickness = 0.5.dp)
+    HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
 }
 
 @Composable
@@ -412,26 +340,39 @@ fun MoveToGroupDialog(
         title = { Text("Déplacer vers un groupe") },
         text = {
             Column(modifier = Modifier.fillMaxWidth()) {
-                // Liste des groupes existants
-                Text("Groupes existants :", style = MaterialTheme.typography.labelLarge)
-                existingGroups.forEach { group ->
-                    TextButton(
-                        onClick = { onGroupSelected(group) },
-                        modifier = Modifier.fillMaxWidth(),
-                        contentPadding = PaddingValues(start = 0.dp)
-                    ) {
-                        Text(group, modifier = Modifier.weight(1f), textAlign = androidx.compose.ui.text.style.TextAlign.Start)
+                Text(
+                    "Choisir un groupe existant :",
+                    style = MaterialTheme.typography.labelLarge,
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+
+                // Liste des groupes existants (scrollable si besoin)
+                LazyColumn(modifier = Modifier.heightIn(max = 150.dp)) {
+                    items(existingGroups) { group ->
+                        TextButton(
+                            onClick = { onGroupSelected(group) },
+                            modifier = Modifier.fillMaxWidth(),
+                            contentPadding = PaddingValues(horizontal = 8.dp)
+                        ) {
+                            Text(
+                                group,
+                                modifier = Modifier.weight(1f),
+                                textAlign = androidx.compose.ui.text.style.TextAlign.Start
+                            )
+                            Icon(Icons.Default.ChevronRight, null, modifier = Modifier.size(16.dp))
+                        }
                     }
                 }
 
-                Spacer(modifier = Modifier.height(16.dp))
+                HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
 
                 // Créer un nouveau groupe
                 OutlinedTextField(
                     value = newGroupName,
                     onValueChange = { newGroupName = it },
-                    label = { Text("Ou créer nouveau groupe") },
-                    modifier = Modifier.fillMaxWidth()
+                    label = { Text("Ou créer nouveau") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
                 )
             }
         },
@@ -440,64 +381,11 @@ fun MoveToGroupDialog(
                 onClick = { if (newGroupName.isNotBlank()) onGroupSelected(newGroupName) },
                 enabled = newGroupName.isNotBlank()
             ) {
-                Text("Créer")
+                Text("Créer et déplacer")
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) { Text("Annuler") }
         }
     )
-}
-
-fun testOverpassCall(onResult: (List<ApiSummit>) -> Unit) {
-
-    //appelle l'API overpass
-    // recherche les pics présents dans un rayon donné
-    // 10 000 : rayon du cercle + coordonnées : centre du cercle
-    //sauvegarde les résultats nom altitude coord et les affiche sur la page
-
-    val query = """
-    [out:json][timeout:25];
-    (
-      node
-        ["natural"="peak"] 
-        (around:10000,45.8326,6.8647); 
-    );
-    out body;
-    """.trimIndent()
-
-    val encodedQuery = java.net.URLEncoder.encode(query, "UTF-8")
-    val url = "https://overpass-api.de/api/interpreter?data=$encodedQuery"
-
-    val client = OkHttpClient()
-    val request = Request.Builder().url(url).get().build()
-
-    CoroutineScope(Dispatchers.IO).launch {
-        try {
-            val response = client.newCall(request).execute()
-            val body = response.body?.string()
-
-            if (body != null && body.trimStart().startsWith("{")) {
-                // C’est probablement du JSON
-                val summits = mutableListOf<ApiSummit>()
-                val json = JSONObject(body)
-                val elements = json.getJSONArray("elements")
-                for (i in 0 until elements.length()) {
-                    val element = elements.getJSONObject(i)
-                    val lat = element.optDouble("lat")
-                    val lon = element.optDouble("lon")
-                    val tags = element.optJSONObject("tags")
-                    val name = tags?.optString("name") ?: continue
-                    val ele = tags?.optString("ele")?.toIntOrNull()
-                    summits.add(ApiSummit(name = name, altitude = ele, lat = lat, lon = lon))
-                }
-                onResult(summits)
-            } else {
-                // Réponse inattendue (XML ou HTML)
-                onResult(listOf(ApiSummit("Erreur API : réponse invalide", null, 0.0, 0.0)))
-            }
-        } catch (e: Exception) {
-            onResult(listOf(ApiSummit("Erreur API : ${e.message}", null, 0.0, 0.0)))
-        }
-    }
 }

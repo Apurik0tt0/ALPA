@@ -24,11 +24,22 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.alpa.utils.SummitViewModel
+import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 
 // On réutilise les modèles définis précédemment (Summit)
 // Assurez-vous d'avoir accès à 'initialSummits' ici.
-
+val initialSummits = listOf(
+    Summit("1", "Mont Blanc", 4807, "Alpes", true, LocalDate.of(2022, 7, 15)),
+    Summit("2", "Dôme du Goûter", 4304, "Alpes", true, LocalDate.of(2022, 7, 14)),
+    Summit("3", "Puy de Dôme", 1465, "Massif Central", true, LocalDate.of(2021, 5, 20)),
+    Summit("4", "Puy de Sancy", 1885, "Massif Central", false),
+    Summit("5", "Vignemale", 3298, "Pyrénées", false),
+    Summit("6", "Pic du Midi", 2877, "Pyrénées", false),
+    Summit("7", "Everest", 8848, "Himalaya", false),
+    Summit("8", "Kilimanjaro", 5895, null, false), // Sans groupe
+    Summit("9", "Fuji", 3776, null, true, LocalDate.of(2019, 8, 1))
+)
 @Composable
 fun HomeScreen(viewModel: SummitViewModel) {
     // 1. Préparation des données (Logique métier simple)

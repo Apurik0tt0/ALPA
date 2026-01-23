@@ -37,11 +37,13 @@ fun AppNavHost(
         modifier = modifier
     ) {
         composable(Screen.Home.route) { HomeScreen(viewModel = viewModel) }
-        composable(Screen.SummitList.route) { SummitsListScreen( onNavigateToAddSummit = {
+        composable(Screen.SummitList.route) { SummitsListScreen( viewModel = viewModel,onNavigateToAddSummit = {
             navController.navigate(Screen.AddSummit.route)
         }) }
         //composable(Screen.Profile.route) { SummitDetailScreen { navController.popBackStack() } }
-        composable(Screen.Profile.route) { TestScreen(viewModel = viewModel) }
+        composable(Screen.Profile.route) { TestScreen(viewModel = viewModel, onAddSummitClick = {
+            navController.navigate(Screen.AddSummit.route)
+        }) }
         composable(Screen.AddSummit.route) { AddSummitScreen(
             onBack = { navController.popBackStack() },
             onSummitAdded = { name, altitude, group ->  },
