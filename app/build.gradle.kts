@@ -62,6 +62,9 @@ dependencies {
     implementation(libs.androidx.compose.foundation)
     implementation(libs.androidx.compose.runtime.saveable) // Une seule fois suffit
 
+    // Carte
+    implementation("org.osmdroid:osmdroid-android:6.1.18")
+
     // Navigation
     val nav_version = "2.8.5" // Version stable actuelle
     implementation("androidx.navigation:navigation-compose:$nav_version")
