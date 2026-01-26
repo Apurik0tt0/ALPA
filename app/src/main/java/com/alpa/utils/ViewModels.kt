@@ -61,6 +61,18 @@ class SummitViewModel(private val dao: SummitDao) : ViewModel() {
         }
     }
 
+    fun importFromJSON(jsonString: String) {
+        try {
+            val summitList = deserializeSummitsFromJson(jsonString)
+            viewModelScope.launch {
+                dao.insertAll(summitList)
+            }
+        }
+        catch (e: Exception){
+            Log.d("test", e.toString())
+        }
+    }
+
     fun getSummitById(id: Int): Flow<SummitEntity> = dao.getSummitById(id)
 
     fun updateSummit(summit: SummitEntity) {

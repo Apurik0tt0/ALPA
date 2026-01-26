@@ -1,5 +1,7 @@
 package com.alpa.ui.screens
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -24,17 +26,60 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.alpa.utils.SummitEntity
 import com.alpa.utils.SummitViewModel
+import com.alpa.utils.serializeSummitsToJson
+import java.lang.System.console
+import java.time.LocalDate
 
 @Composable
 fun InfoScreen(
     viewModel: SummitViewModel
 ) {
+    val allSummits by viewModel.allSummits.collectAsState(initial = emptyList())
+    val context = LocalContext.current
+
+// Ce lanceur ouvre le sélecteur de dossier d'Android
+    val createDocumentLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("application/json")
+    ) { uri ->
+        // Une fois que l'utilisateur a choisi l'emplacement, on écrit dedans
+        uri?.let {
+            val jsonString = serializeSummitsToJson(allSummits) // Ta fonction de sérialisation
+            try {
+                context.contentResolver.openOutputStream(it)?.use { outputStream ->
+                    outputStream.write(jsonString.toByteArray())
+                }
+                // Optionnel : Afficher un Toast de succès
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
+
+    val importLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri ->
+        uri?.let {
+            val jsonContent = context.contentResolver.openInputStream(it)?.bufferedReader()?.use { reader ->
+                reader.readText()
+            }
+            if (jsonContent != null) {
+                //viewModel.importData(jsonContent)
+                println(jsonContent)
+                viewModel.importFromJSON(jsonContent)
+            }
+        }
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -81,7 +126,9 @@ fun InfoScreen(
         ) {
             // Bouton Exporter
             Button(
-                onClick = { /* Appeler viewModel.exportToJson() */ },
+                onClick = {
+                    val fileName = "alpa_export_${LocalDate.now()}.json"
+                    createDocumentLauncher.launch(fileName)},
                 modifier = Modifier.weight(1f),
                 shape = RoundedCornerShape(12.dp)
             ) {
@@ -92,7 +139,7 @@ fun InfoScreen(
 
             // Bouton Importer
             OutlinedButton(
-                onClick = { /* Appeler viewModel.importFromJson() */ },
+                onClick = { importLauncher.launch("application/json") },
                 modifier = Modifier.weight(1f),
                 shape = RoundedCornerShape(12.dp)
             ) {
