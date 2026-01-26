@@ -340,6 +340,7 @@ fun MapSearchContent(
     LaunchedEffect(Unit) {
         Configuration.getInstance().load(context, PreferenceManager.getDefaultSharedPreferences(context))
         Configuration.getInstance().userAgentValue = "AlpaApp/1.0"
+        viewModel.fetchLocation(context)
     }
 
     // --- ÉTATS ---
@@ -392,13 +393,17 @@ fun MapSearchContent(
                             MapView(ctx).apply {
                                 setTileSource(TileSourceFactory.MAPNIK)
                                 setMultiTouchControls(true)
-                                controller.setZoom(8.0)
-                                controller.setCenter(
-                                    GeoPoint(
-                                        latitude.toDouble(),
-                                        longitude.toDouble()
-                                    )
+                                controller.setZoom(13.0)
+
+                                val startPoint = GeoPoint(
+                                    viewModel.userLocation?.latitude ?: latitude.toDouble(),
+                                    viewModel.userLocation?.longitude ?: longitude.toDouble()
                                 )
+
+                                controller.setCenter(startPoint)
+                                latitude = startPoint.latitude.toString()
+                                longitude = startPoint.longitude.toString()
+
 
                                 // On empêche la LazyColumn de voler le focus quand on touche la carte
                                 setOnTouchListener { v, event ->
