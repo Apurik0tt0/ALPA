@@ -38,17 +38,20 @@ fun MapScreen(viewModel: SummitViewModel) {
     // List<String> = Liste des groupes à afficher
     var selectedGroups by remember { mutableStateOf<List<String>?>(null) }
 
+    var selectedStatus by remember { mutableStateOf<Boolean?>(null) }
+
     // --- 3. LOGIQUE DE FILTRAGE ---
-    val filteredSummits = remember(allSummits, minAltitude, selectedGroups) {
+    val filteredSummits = remember(allSummits, minAltitude, selectedGroups, selectedStatus) {
         allSummits.filter { summit ->
             val alt = summit.altitude ?: 0
             val matchAltitude = alt >= minAltitude
+            val matchStatus = if (selectedStatus == null) true else summit.isValidated == selectedStatus
 
             // Si selectedGroups est null, on affiche tout.
             // Sinon, on vérifie si le groupe du sommet est dans la liste sélectionnée.
             val matchGroup = selectedGroups == null || (summit.groupName != null && selectedGroups!!.contains(summit.groupName))
 
-            matchAltitude && matchGroup
+            matchAltitude && matchGroup && matchStatus
         }
     }
 
@@ -141,6 +144,52 @@ fun MapScreen(viewModel: SummitViewModel) {
                     steps = 47
                 )
 
+
+                // -- Filtre Status (Séléction unique) --
+                Text("Status", style = MaterialTheme.typography.titleMedium)
+
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+
+                    // Puce "Tous"
+                    item {
+                        FilterChip(
+                            selected = selectedStatus == null,
+                            onClick = { selectedStatus = null },
+                            label = { Text("Réalisés") },
+                            leadingIcon = if (selectedStatus == null) {
+                                { Icon(Icons.Default.Check, null, Modifier.size(16.dp)) }
+                            } else null
+                        )
+                    }
+
+                    // Puce "Validés"
+                    item {
+                        FilterChip(
+                            selected = selectedStatus == true,
+                            onClick = { selectedStatus = true },
+                            label = { Text("Réalisés") },
+                            leadingIcon = if (selectedStatus == true) {
+                                { Icon(Icons.Default.Check, null, Modifier.size(16.dp)) }
+                            } else null
+                        )
+                    }
+
+                    // Puce "À faire"
+                    item {
+                        FilterChip(
+                            selected = selectedStatus == false,
+                            onClick = { selectedStatus = false },
+                            label = { Text("À faire") },
+                            leadingIcon = if (selectedStatus == false) {
+                                { Icon(Icons.Default.Check, null, Modifier.size(16.dp)) }
+                            } else null
+                        )
+                    }
+                }
+
                 // -- Filtre Groupe (Multi-sélection) --
                 Text("Groupe / Massif", style = MaterialTheme.typography.titleMedium)
 
@@ -187,6 +236,7 @@ fun MapScreen(viewModel: SummitViewModel) {
                         )
                     }
                 }
+
 
                 // Boutons bas de page
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
