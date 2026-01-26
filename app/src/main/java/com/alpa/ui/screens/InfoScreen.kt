@@ -105,7 +105,9 @@ fun InfoScreen(
                 Text(
                     text = "ALPA est votre assistant personnel pour la gestion de données de sommets. " +
                             "Cette application permet de centraliser vos expéditions, de suivre vos progrès " +
-                            "et de sauvegarder vos performances de manière sécurisée.",
+                            "et de sauvegarder vos performances." +
+                            "Ce projet a été réalisé en tant que projet de cours d'application mobile." +
+                            "Dévelopé avec amour par l'incroyable team Apurikotto & Knowlester",
                     style = MaterialTheme.typography.bodyLarge
                 )
             }
