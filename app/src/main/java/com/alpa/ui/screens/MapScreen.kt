@@ -158,7 +158,7 @@ fun MapScreen(viewModel: SummitViewModel) {
                         FilterChip(
                             selected = selectedStatus == null,
                             onClick = { selectedStatus = null },
-                            label = { Text("Réalisés") },
+                            label = { Text("Tous") },
                             leadingIcon = if (selectedStatus == null) {
                                 { Icon(Icons.Default.Check, null, Modifier.size(16.dp)) }
                             } else null
