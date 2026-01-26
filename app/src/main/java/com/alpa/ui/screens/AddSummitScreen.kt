@@ -47,11 +47,13 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.material.icons.filled.*
 
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.core.content.ContextCompat
 
 // IMPORTS OSMDROID
 import org.osmdroid.config.Configuration
 import org.osmdroid.events.MapEventsReceiver
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory
+import org.osmdroid.util.BoundingBox
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.MapEventsOverlay
@@ -448,33 +450,59 @@ fun MapSearchContent(
                                 // mais on peut le faire si on veut suivre le point.
                                 // mapView.controller.animateTo(centerPoint)
 
-                                // 2. Nettoyer les overlays (sauf le gestionnaire d'événements qui est à l'index 0)
+                                // 2. Nettoyer les overlays dynamiques (on garde l'overlay d'événements)
                                 if (mapView.overlays.size > 1) {
                                     mapView.overlays.subList(1, mapView.overlays.size).clear()
                                 }
 
-                                // 3. Dessiner le marqueur central
-                                val marker = Marker(mapView)
-                                marker.position = centerPoint
-                                marker.setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
-                                marker.title = "Centre de recherche"
-                                // Astuce: fermer l'infobulle au clic carte
-                                mapView.overlays.add(marker)
+                                // 3. Marker du centre
+                                val centerMarker = Marker(mapView).apply {
+                                    position = centerPoint
+                                    setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
+                                    title = "Centre de recherche"
+                                }
+                                mapView.overlays.add(centerMarker)
 
-                                // 4. Dessiner le cercle de rayon (Polygon)
+                                // 4. Cercle de rayon
                                 val circle = Polygon().apply {
-                                    points = Polygon.pointsAsCircle(
-                                        centerPoint,
-                                        searchRadius * 1000.0
-                                    ) // km -> mètres
-                                    fillColor = 0x12121212 // Gris transparent (ARGB)
-                                    strokeColor = 0xFF0000FF.toInt() // Bleu
+                                    points = Polygon.pointsAsCircle(centerPoint, searchRadius * 1000.0)
+                                    fillColor = 0x12121212
+                                    strokeColor = 0xFF0000FF.toInt()
                                     strokeWidth = 2f
-                                    title = "Zone de ${searchRadius.toInt()} km"
                                 }
                                 mapView.overlays.add(circle)
+                                val selectedSet = selectedResults.toSet()
+                                // 5. MARKERS DES SOMMETS
+                                searchResults.forEach { summit ->
 
-                                mapView.invalidate() // Redessiner
+                                    val latS = summit.lat
+                                    val lonS = summit.lon
+
+                                    if (latS != null && lonS != null) {
+                                        val isSelected = selectedResults.contains(summit)
+                                        val summitMarker = Marker(mapView).apply {
+                                            alpha = if (isSelected) 1.0f else 0.4f
+                                            position = GeoPoint(latS, lonS)
+                                            setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
+                                            title = summit.name
+                                            snippet = "Alt: ${summit.altitude ?: "?"} m"
+                                            setOnMarkerClickListener { _, _ ->
+                                                if (selectedResults.contains(summit)) {
+                                                    selectedResults.remove(summit)
+                                                } else {
+                                                    selectedResults.add(summit)
+                                                }
+                                                true
+                                            }
+                                        }
+
+                                        mapView.overlays.add(summitMarker)
+                                    }
+                                }
+
+
+                                mapView.invalidate()
+
                             }
                         }
                     )
