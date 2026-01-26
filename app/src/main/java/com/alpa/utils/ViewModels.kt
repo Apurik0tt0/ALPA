@@ -1,6 +1,12 @@
 package com.alpa.utils
 
+import android.annotation.SuppressLint
+import android.content.Context
+import android.location.Location
 import android.util.Log
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -13,6 +19,40 @@ class SummitViewModel(private val dao: SummitDao) : ViewModel() {
     // 1. Observation des données (Flow)
     public val allSummits: Flow<List<SummitEntity>> = dao.getAllSummits()
     public val allGroups: Flow<List<String>> = dao.getAllGroups()
+
+    // --- Outils pour la carte et obtenir la position ---
+
+    private val locationService = LocationService()
+    // Pour stocker la position et l'afficher sur la carte
+    var userLocation by mutableStateOf<Location?>(null)
+    // État pour afficher un message d'erreur à l'utilisateur
+    var errorMessage by mutableStateOf<String?>(null)
+
+    @SuppressLint("MissingPermission")
+    fun fetchLocation(context: Context) {
+        viewModelScope.launch {
+            try {
+                errorMessage = null // Reset de l'erreur
+                val location = locationService.getCurrentLocation(context)
+                userLocation = location
+            } catch (e: LocationService.LocationServiceException) {
+                // Traduction des exceptions en messages clairs
+
+                errorMessage = when(e) {
+                    is LocationService.LocationServiceException.MissingPermissionException ->
+                        "Permission refusée. Veuillez l'activer dans les paramètres."
+                    is LocationService.LocationServiceException.LocationDisabledException ->
+                        "Le GPS est désactivé. Veuillez l'activer."
+                    is LocationService.LocationServiceException.NoInternetException ->
+                        "Connexion internet requise pour la localisation."
+                    else -> "Une erreur inconnue est survenue."
+                }
+                Log.d("test", errorMessage.toString())
+            }
+        }
+    }
+
+
 
     // 2. Action : Ajout d'un sommet
     fun addSummit(summit: SummitEntity) {
