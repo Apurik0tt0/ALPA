@@ -64,6 +64,8 @@ dependencies {
 
     // Carte
     implementation("org.osmdroid:osmdroid-android:6.1.18")
+    implementation("com.google.android.gms:play-services-location:21.0.1")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.7.3")
 
     // Navigation
     val nav_version = "2.8.5" // Version stable actuelle

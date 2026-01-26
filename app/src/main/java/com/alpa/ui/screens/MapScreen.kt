@@ -1,5 +1,6 @@
 package com.alpa.ui.screens
 
+import android.content.Context
 import android.preference.PreferenceManager
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
@@ -7,6 +8,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.FilterList
+import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -20,6 +22,8 @@ import org.osmdroid.tileprovider.tilesource.TileSourceFactory
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.Marker
+import org.osmdroid.views.overlay.mylocation.GpsMyLocationProvider
+import org.osmdroid.views.overlay.mylocation.MyLocationNewOverlay
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -40,6 +44,22 @@ fun MapScreen(viewModel: SummitViewModel) {
 
     var selectedStatus by remember { mutableStateOf<Boolean?>(null) }
 
+    // variables de position
+    var userLatitude = viewModel.userLocation?.latitude ?: 45.9237
+    var userLongitude = viewModel.userLocation?.longitude ?: 6.8694
+    // reference vers la carte
+    var mapViewRef by remember { mutableStateOf<MapView?>(null) }
+
+    // Création du calque de localisation
+    val myLocationOverlay = remember(mapViewRef) {
+        mapViewRef?.let { map ->
+            MyLocationNewOverlay(GpsMyLocationProvider(context), map).apply {
+                enableMyLocation() // Active le point bleu
+                isDrawAccuracyEnabled = true // Affiche le cercle bleu clair de précision
+            }
+        }
+    }
+
     // --- 3. LOGIQUE DE FILTRAGE ---
     val filteredSummits = remember(allSummits, minAltitude, selectedGroups, selectedStatus) {
         allSummits.filter { summit ->
@@ -59,15 +79,44 @@ fun MapScreen(viewModel: SummitViewModel) {
     LaunchedEffect(Unit) {
         Configuration.getInstance().load(context, PreferenceManager.getDefaultSharedPreferences(context))
         Configuration.getInstance().userAgentValue = "AlpaApp/1.0"
+        viewModel.fetchLocation(context)
+        mapViewRef?.let { map ->
+            map.controller.animateTo(GeoPoint(userLatitude, userLongitude))
+            map.controller.setZoom(13.0)
+        }
     }
 
     // --- 4. UI PRINCIPALE ---
     Scaffold(
         floatingActionButton = {
-            FloatingActionButton(onClick = { showFilterSheet = true }) {
-                Icon(Icons.Default.FilterList, contentDescription = "Filtres")
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp), // Pour décoller des bords de l'écran
+                horizontalArrangement = Arrangement.SpaceBetween, // Un à gauche, un à droite
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // --- BOUTON EN BAS À GAUCHE (Localisation) ---
+                FloatingActionButton(
+                    onClick = { mapViewRef?.let { map ->
+                        map.controller.animateTo(GeoPoint(userLatitude, userLongitude))
+                        map.controller.setZoom(13.0)
+                    } },
+                    containerColor = MaterialTheme.colorScheme.secondary // Couleur différente pour distinguer
+                ) {
+                    Icon(Icons.Default.MyLocation, contentDescription = "Ma position")
+                }
+
+                // --- BOUTON EN BAS À DROITE (Filtres actuel) ---
+                FloatingActionButton(
+                    onClick = { showFilterSheet = true }
+                ) {
+                    Icon(Icons.Default.FilterList, contentDescription = "Filtres")
+                }
             }
-        }
+        },
+        floatingActionButtonPosition = FabPosition.Center
+
     ) { padding ->
         Box(modifier = Modifier.padding(padding).fillMaxSize()) {
 
@@ -79,7 +128,8 @@ fun MapScreen(viewModel: SummitViewModel) {
                         setTileSource(TileSourceFactory.MAPNIK)
                         setMultiTouchControls(true)
                         controller.setZoom(9.0)
-                        controller.setCenter(GeoPoint(45.9237, 6.8694)) // Chamonix par défaut
+                        controller.setCenter(GeoPoint(userLatitude, userLongitude)) // Chamonix par défaut
+                        mapViewRef = this // on save une ref vers la carte
                     }
                 },
                 update = { mapView ->
@@ -100,6 +150,14 @@ fun MapScreen(viewModel: SummitViewModel) {
                             mapView.overlays.add(marker)
                         }
                     }
+
+                    // 2. On ajoute le point bleu
+                    myLocationOverlay?.let {
+                        if (!mapView.overlays.contains(it)) {
+                            mapView.overlays.add(it)
+                        }
+                    }
+
                     mapView.invalidate()
                 }
             )
@@ -254,4 +312,8 @@ fun MapScreen(viewModel: SummitViewModel) {
             }
         }
     }
+}
+
+fun goToUserPosition(context: Context){
+
 }
