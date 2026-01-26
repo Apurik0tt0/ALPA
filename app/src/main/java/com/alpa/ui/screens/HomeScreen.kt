@@ -3,6 +3,7 @@ package com.alpa.ui.screens
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -30,7 +31,8 @@ import java.time.format.DateTimeFormatter
 @Composable
 fun HomeScreen(
     viewModel: SummitViewModel,
-    onSummitClick: (Int) -> Unit // Callback pour naviguer vers les détails
+    onSummitClick: (Int) -> Unit, // Callback pour naviguer vers les détails
+    onInfoClick: () -> Unit
 ) {
     // 1. Observation de la Base de Données
     val allSummits by viewModel.allSummits.collectAsState(initial = emptyList())
@@ -71,7 +73,7 @@ fun HomeScreen(
         verticalArrangement = Arrangement.spacedBy(24.dp)
     ) {
         // --- En-tête ---
-        HeaderSection()
+        HeaderSection(onInfoClick)
 
         // --- Statistiques ---
         StatsSection(totalAltitude, summitsCount, everestRatio)
@@ -100,7 +102,7 @@ fun HomeScreen(
 // --- SOUS-COMPOSANTS ---
 
 @Composable
-fun HeaderSection() {
+fun HeaderSection(onInfoClick: () -> Unit) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -118,6 +120,16 @@ fun HeaderSection() {
                 fontWeight = FontWeight.ExtraBold,
                 color = MaterialTheme.colorScheme.primary
             )
+        }
+
+        Column{
+            IconButton(onClick =  onInfoClick) {
+                Icon(
+                    imageVector = Icons.Default.Info,
+                    contentDescription = "Informations",
+                    tint = MaterialTheme.colorScheme.primary
+                )
+            }
         }
     }
 }
