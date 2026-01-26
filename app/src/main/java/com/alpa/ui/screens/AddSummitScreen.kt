@@ -42,6 +42,7 @@ import com.alpa.utils.testOverpassCall
 //------------
 import android.preference.PreferenceManager
 import android.view.MotionEvent
+import androidx.compose.animation.AnimatedVisibility
 
 import androidx.compose.material.icons.filled.*
 
@@ -56,6 +57,29 @@ import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.MapEventsOverlay
 import org.osmdroid.views.overlay.Marker
 import org.osmdroid.views.overlay.Polygon
+import kotlin.math.*
+
+
+fun distanceInKm(
+    lat1: Double,
+    lon1: Double,
+    lat2: Double,
+    lon2: Double
+): Double {
+    val earthRadius = 6371.0 // Rayon de la Terre en km
+
+    val dLat = Math.toRadians(lat2 - lat1)
+    val dLon = Math.toRadians(lon2 - lon1)
+
+    val a = sin(dLat / 2).pow(2) +
+            cos(Math.toRadians(lat1)) *
+            cos(Math.toRadians(lat2)) *
+            sin(dLon / 2).pow(2)
+
+    val c = 2 * atan2(sqrt(a), sqrt(1 - a))
+
+    return earthRadius * c
+}
 
 // On crée une petite classe de données temporaire pour les résultats de la "fausse" recherche API
 
@@ -320,7 +344,7 @@ fun MapSearchContent(
 
     // --- ÉTATS ---
     val existingGroups by viewModel.allGroups.collectAsState(initial = emptyList())
-
+    var isPanelExpanded by remember { mutableStateOf(false) }
     var isLoading by remember { mutableStateOf(false) }
 
     // Valeurs par défaut (ex: un point dans les Alpes)
@@ -333,291 +357,462 @@ fun MapSearchContent(
     val selectedResults = remember { mutableStateListOf<ApiSummit>() }
     var selectedGroupName by remember { mutableStateOf("") }
 
+    LaunchedEffect(selectedResults.size) {
+        if (selectedResults.size == 1) {
+            isPanelExpanded = false
+        }
+    }
+
     // --- INTERFACE ---
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
+    Box(modifier = Modifier.fillMaxSize()) {
 
-        // 1. LA CARTE INTERACTIVE
-        item {
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(350.dp), // On agrandit un peu pour le confort
-                shape = RoundedCornerShape(12.dp),
-                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
-            ) {
-                AndroidView(
-                    modifier = Modifier.fillMaxSize(),
-                    factory = { ctx ->
-                        MapView(ctx).apply {
-                            setTileSource(TileSourceFactory.MAPNIK)
-                            setMultiTouchControls(true)
-                            controller.setZoom(8.0)
-                            controller.setCenter(GeoPoint(latitude.toDouble(), longitude.toDouble()))
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(
+                start = 16.dp,
+                end = 16.dp,
+                top = 16.dp,
+                bottom = if (selectedResults.isNotEmpty()) 88.dp else 16.dp
+            ),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
 
-                            // On empêche la LazyColumn de voler le focus quand on touche la carte
-                            setOnTouchListener { v, event ->
-                                when (event.action) {
-                                    MotionEvent.ACTION_DOWN -> {
-                                        // L'utilisateur pose le doigt : on interdit au parent (LazyColumn) de scroller
-                                        v.parent.requestDisallowInterceptTouchEvent(true)
-                                    }
-                                    MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                                        // L'utilisateur lève le doigt : on rend le contrôle au parent
-                                        v.parent.requestDisallowInterceptTouchEvent(false)
-                                    }
-                                }
-                                // On retourne false pour laisser la MapView traiter le mouvement (déplacement carte)
-                                false
-                            }
-                            // Gestionnaire d'événements (Clic sur la carte)
-                            val eventsOverlay = MapEventsOverlay(object : MapEventsReceiver {
-                                override fun singleTapConfirmedHelper(p: GeoPoint): Boolean {
-                                    // Mise à jour des TextFields quand on clique sur la carte
-                                    latitude = p.latitude.toString()
-                                    longitude = p.longitude.toString()
-                                    return true
-                                }
-                                override fun longPressHelper(p: GeoPoint): Boolean = false
-                            })
-                            overlays.add(eventsOverlay)
-                        }
-                    },
-                    update = { mapView ->
-                        // Cette partie est rappelée quand latitude, longitude ou radius changent
-                        val lat = latitude.toDoubleOrNull()
-                        val lon = longitude.toDoubleOrNull()
-
-                        if (lat != null && lon != null) {
-                            val centerPoint = GeoPoint(lat, lon)
-
-                            // 1. Centrer la carte (seulement si le déplacement est significatif pour éviter de bloquer le scroll)
-                            // Ici on ne centre pas forcémenent à chaque frame pour laisser l'utilisateur explorer,
-                            // mais on peut le faire si on veut suivre le point.
-                            // mapView.controller.animateTo(centerPoint)
-
-                            // 2. Nettoyer les overlays (sauf le gestionnaire d'événements qui est à l'index 0)
-                            if (mapView.overlays.size > 1) {
-                                mapView.overlays.subList(1, mapView.overlays.size).clear()
-                            }
-
-                            // 3. Dessiner le marqueur central
-                            val marker = Marker(mapView)
-                            marker.position = centerPoint
-                            marker.setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
-                            marker.title = "Centre de recherche"
-                            // Astuce: fermer l'infobulle au clic carte
-                            mapView.overlays.add(marker)
-
-                            // 4. Dessiner le cercle de rayon (Polygon)
-                            val circle = Polygon().apply {
-                                points = Polygon.pointsAsCircle(centerPoint, searchRadius * 1000.0) // km -> mètres
-                                fillColor = 0x12121212 // Gris transparent (ARGB)
-                                strokeColor = 0xFF0000FF.toInt() // Bleu
-                                strokeWidth = 2f
-                                title = "Zone de ${searchRadius.toInt()} km"
-                            }
-                            mapView.overlays.add(circle)
-
-                            mapView.invalidate() // Redessiner
-                        }
-                    }
-                )
-            }
-            Text(
-                text = "Touchez la carte pour définir le centre de recherche",
-                style = MaterialTheme.typography.bodySmall,
-                color = Color.Gray,
-                modifier = Modifier.padding(top = 4.dp, start = 4.dp)
-            )
-        }
-
-        // 2. CHAMPS LATITUDE / LONGITUDE (Synchronisés)
-        item {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                OutlinedTextField(
-                    value = latitude,
-                    onValueChange = { input ->
-                        if (input.isEmpty() || input.matches(Regex("""^-?\d*\.?\d*$"""))) {
-                            latitude = input
-                        }
-                    },
-                    label = { Text("Latitude") },
-                    modifier = Modifier.weight(1f),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                    singleLine = true
-                )
-
-                OutlinedTextField(
-                    value = longitude,
-                    onValueChange = { input ->
-                        if (input.isEmpty() || input.matches(Regex("""^-?\d*\.?\d*$"""))) {
-                            longitude = input
-                        }
-                    },
-                    label = { Text("Longitude") },
-                    modifier = Modifier.weight(1f),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                    singleLine = true
-                )
-            }
-        }
-
-        // 3. CONTRÔLES DE RECHERCHE
-        item {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Rayon de recherche : ${searchRadius.toInt()} km", style = MaterialTheme.typography.labelLarge)
-
-                Slider(
-                    value = searchRadius,
-                    onValueChange = { searchRadius = it },
-                    valueRange = 1f..50f,
-                    steps = 49
-                )
-
-                Button(
-                    onClick = {
-                        val lat = latitude.toDoubleOrNull()
-                        val lon = longitude.toDoubleOrNull()
-                        if (lat != null && lon != null) {
-                            isLoading = true
-                            searchResults = emptyList()
-                            testOverpassCall(lat, lon, searchRadius.toInt()) { result ->
-                                searchResults = result
-                                isLoading = false
-                            }
-                        } else {
-                            Toast.makeText(context, "Coordonnées invalides", Toast.LENGTH_SHORT).show()
-                        }
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                    enabled = !isLoading
-                ) {
-                    if (isLoading) {
-                        CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onPrimary)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Recherche en cours...")
-                    } else {
-                        Icon(Icons.Default.Search, contentDescription = null)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Rechercher les sommets alentours")
-                    }
-                }
-            }
-        }
-
-        item { HorizontalDivider() }
-
-        // 4. LISTE DES RÉSULTATS
-        if (searchResults.isEmpty() && !isLoading) {
+            // 1. LA CARTE INTERACTIVE
             item {
-                Box(modifier = Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
-                    Text("Lancez une recherche pour voir les résultats.", color = Color.Gray)
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(350.dp), // On agrandit un peu pour le confort
+                    shape = RoundedCornerShape(12.dp),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+                ) {
+                    AndroidView(
+                        modifier = Modifier.fillMaxSize(),
+                        factory = { ctx ->
+                            MapView(ctx).apply {
+                                setTileSource(TileSourceFactory.MAPNIK)
+                                setMultiTouchControls(true)
+                                controller.setZoom(8.0)
+                                controller.setCenter(
+                                    GeoPoint(
+                                        latitude.toDouble(),
+                                        longitude.toDouble()
+                                    )
+                                )
+
+                                // On empêche la LazyColumn de voler le focus quand on touche la carte
+                                setOnTouchListener { v, event ->
+                                    when (event.action) {
+                                        MotionEvent.ACTION_DOWN -> {
+                                            // L'utilisateur pose le doigt : on interdit au parent (LazyColumn) de scroller
+                                            v.parent.requestDisallowInterceptTouchEvent(true)
+                                        }
+
+                                        MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                                            // L'utilisateur lève le doigt : on rend le contrôle au parent
+                                            v.parent.requestDisallowInterceptTouchEvent(false)
+                                        }
+                                    }
+                                    // On retourne false pour laisser la MapView traiter le mouvement (déplacement carte)
+                                    false
+                                }
+                                // Gestionnaire d'événements (Clic sur la carte)
+                                val eventsOverlay = MapEventsOverlay(object : MapEventsReceiver {
+                                    override fun singleTapConfirmedHelper(p: GeoPoint): Boolean {
+                                        // Mise à jour des TextFields quand on clique sur la carte
+                                        latitude = p.latitude.toString()
+                                        longitude = p.longitude.toString()
+                                        return true
+                                    }
+
+                                    override fun longPressHelper(p: GeoPoint): Boolean = false
+                                })
+                                overlays.add(eventsOverlay)
+                            }
+                        },
+                        update = { mapView ->
+                            // Cette partie est rappelée quand latitude, longitude ou radius changent
+                            val lat = latitude.toDoubleOrNull()
+                            val lon = longitude.toDoubleOrNull()
+
+                            if (lat != null && lon != null) {
+                                val centerPoint = GeoPoint(lat, lon)
+
+                                // 1. Centrer la carte (seulement si le déplacement est significatif pour éviter de bloquer le scroll)
+                                // Ici on ne centre pas forcémenent à chaque frame pour laisser l'utilisateur explorer,
+                                // mais on peut le faire si on veut suivre le point.
+                                // mapView.controller.animateTo(centerPoint)
+
+                                // 2. Nettoyer les overlays (sauf le gestionnaire d'événements qui est à l'index 0)
+                                if (mapView.overlays.size > 1) {
+                                    mapView.overlays.subList(1, mapView.overlays.size).clear()
+                                }
+
+                                // 3. Dessiner le marqueur central
+                                val marker = Marker(mapView)
+                                marker.position = centerPoint
+                                marker.setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
+                                marker.title = "Centre de recherche"
+                                // Astuce: fermer l'infobulle au clic carte
+                                mapView.overlays.add(marker)
+
+                                // 4. Dessiner le cercle de rayon (Polygon)
+                                val circle = Polygon().apply {
+                                    points = Polygon.pointsAsCircle(
+                                        centerPoint,
+                                        searchRadius * 1000.0
+                                    ) // km -> mètres
+                                    fillColor = 0x12121212 // Gris transparent (ARGB)
+                                    strokeColor = 0xFF0000FF.toInt() // Bleu
+                                    strokeWidth = 2f
+                                    title = "Zone de ${searchRadius.toInt()} km"
+                                }
+                                mapView.overlays.add(circle)
+
+                                mapView.invalidate() // Redessiner
+                            }
+                        }
+                    )
+                }
+                Text(
+                    text = "Touchez la carte pour définir le centre de recherche",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color.Gray,
+                    modifier = Modifier.padding(top = 4.dp, start = 4.dp)
+                )
+            }
+
+            // 2. CHAMPS LATITUDE / LONGITUDE (Synchronisés)
+            /*item {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    OutlinedTextField(
+                        value = latitude,
+                        onValueChange = { input ->
+                            if (input.isEmpty() || input.matches(Regex("""^-?\d*\.?\d*$"""))) {
+                                latitude = input
+                            }
+                        },
+                        label = { Text("Latitude") },
+                        modifier = Modifier.weight(1f),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        singleLine = true
+                    )
+
+                    OutlinedTextField(
+                        value = longitude,
+                        onValueChange = { input ->
+                            if (input.isEmpty() || input.matches(Regex("""^-?\d*\.?\d*$"""))) {
+                                longitude = input
+                            }
+                        },
+                        label = { Text("Longitude") },
+                        modifier = Modifier.weight(1f),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        singleLine = true
+                    )
+                }
+            }*/
+
+            // 3. CONTRÔLES DE RECHERCHE
+            item {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        "Rayon de recherche : ${searchRadius.toInt()} km",
+                        style = MaterialTheme.typography.labelLarge
+                    )
+
+                    Slider(
+                        value = searchRadius,
+                        onValueChange = { searchRadius = it },
+                        valueRange = 1f..50f,
+                        steps = 49
+                    )
+
+                    Button(
+                        onClick = {
+                            val lat = latitude.toDoubleOrNull()
+                            val lon = longitude.toDoubleOrNull()
+                            if (lat != null && lon != null) {
+                                isLoading = true
+                                searchResults = emptyList()
+                                testOverpassCall(lat, lon, searchRadius.toInt()) { result ->
+
+                                    val sorted = result
+                                        .filter { it.lat != null && it.lon != null }
+                                        .sortedBy { summit ->
+                                            distanceInKm(
+                                                lat,
+                                                lon,
+                                                summit.lat!!,
+                                                summit.lon!!
+                                            )
+                                        }
+
+                                    searchResults = sorted
+                                    isLoading = false
+                                }
+                            } else {
+                                Toast.makeText(context, "Coordonnées invalides", Toast.LENGTH_SHORT)
+                                    .show()
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        enabled = !isLoading
+                    ) {
+                        if (isLoading) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(16.dp),
+                                strokeWidth = 2.dp,
+                                color = MaterialTheme.colorScheme.onPrimary
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Recherche en cours...")
+                        } else {
+                            Icon(Icons.Default.Search, contentDescription = null)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Rechercher les sommets alentours")
+                        }
+                    }
                 }
             }
-        } else {
-            // Gestion erreur API
-            if(searchResults.size == 1 && searchResults[0].name.startsWith("Erreur API")) {
+
+            item { HorizontalDivider() }
+
+            /*// 4. ZONE DE VALIDATION
+            if (selectedResults.isNotEmpty()) {
                 item {
-                    Box(modifier = Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
-                        Text(searchResults[0].name, color = MaterialTheme.colorScheme.error)
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
+                        modifier = Modifier.fillMaxWidth().padding(top = 16.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            Text(
+                                "Ajouter ${selectedResults.size} sommet(s)",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+
+                            GroupSelector(
+                                existingGroups = existingGroups,
+                                onGroupSelected = { selectedGroupName = it }
+                            )
+
+                            Button(
+                                onClick = {
+                                    selectedResults.forEach { apiRes ->
+                                        val newSummit = SummitEntity(
+                                            name = apiRes.name,
+                                            altitude = apiRes.altitude,
+                                            groupName = selectedGroupName.ifBlank { null },
+                                            latitude = apiRes.lat,
+                                            longitude = apiRes.lon,
+                                            location = "Import Carte",
+                                            transportModes = emptyList()
+                                        )
+                                        viewModel.addSummit(newSummit)
+                                    }
+                                    Toast.makeText(context, "${selectedResults.size} sommets ajoutés !", Toast.LENGTH_SHORT).show()
+                                    onFinished()
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                            ) {
+                                Icon(Icons.Default.Save, contentDescription = null)
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("Confirmer l'ajout")
+                            }
+                        }
+                    }
+                }
+                item { Spacer(modifier = Modifier.height(80.dp)) }
+            }
+
+             */
+            // 5. LISTE DES RÉSULTATS
+            if (searchResults.isEmpty() && !isLoading) {
+                item {
+                    Box(
+                        modifier = Modifier.fillMaxWidth().padding(32.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text("Lancez une recherche pour voir les résultats.", color = Color.Gray)
                     }
                 }
             } else {
-                item {
-                    Text(
-                        "Résultats (${searchResults.size})",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
+                // Gestion erreur API
+                if (searchResults.size == 1 && searchResults[0].name.startsWith("Erreur API")) {
+                    item {
+                        Box(
+                            modifier = Modifier.fillMaxWidth().padding(32.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(searchResults[0].name, color = MaterialTheme.colorScheme.error)
+                        }
+                    }
+                } else {
+                    item {
+                        Text(
+                            "Résultats (${searchResults.size})",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
 
-                items(searchResults) { result ->
-                    val isSelected = selectedResults.contains(result)
+                    items(searchResults) { result ->
+                        val isSelected = selectedResults.contains(result)
 
-                    ListItem(
-                        headlineContent = { Text(result.name) },
-                        supportingContent = { Text("Alt: ${result.altitude ?: "?"}m") },
-                        leadingContent = {
-                            Checkbox(
-                                checked = isSelected,
-                                onCheckedChange = { checked ->
-                                    if (checked) selectedResults.add(result)
-                                    else selectedResults.remove(result)
+
+                        val centerLat = latitude.toDoubleOrNull()
+                        val centerLon = longitude.toDoubleOrNull()
+                        val distance = if (
+                            centerLat != null &&
+                            centerLon != null &&
+                            result.lat != null &&
+                            result.lon != null
+                        ) {
+                            distanceInKm(centerLat, centerLon, result.lat, result.lon)
+                        } else null
+
+                        ListItem(
+                            headlineContent = { Text(result.name) },
+                            supportingContent = {
+                                Text(
+                                    buildString {
+                                        append("Alt: ${result.altitude ?: "?"} m")
+                                        if (distance != null) {
+                                            append(" • ${"%.1f".format(distance)} km")
+                                        }
+                                    }
+                                )
+                            },
+                            leadingContent = {
+                                Checkbox(
+                                    checked = isSelected,
+                                    onCheckedChange = { checked ->
+                                        if (checked) selectedResults.add(result)
+                                        else selectedResults.remove(result)
+                                    }
+                                )
+                            },
+                            colors = ListItemDefaults.colors(
+                                containerColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(
+                                    alpha = 0.3f
+                                )
+                                else MaterialTheme.colorScheme.surfaceVariant
+                            ),
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable {
+                                    if (isSelected) selectedResults.remove(result)
+                                    else selectedResults.add(result)
                                 }
-                            )
-                        },
-                        colors = ListItemDefaults.colors(
-                            containerColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
-                            else MaterialTheme.colorScheme.surfaceVariant
-                        ),
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(8.dp))
-                            .clickable {
-                                if (isSelected) selectedResults.remove(result)
-                                else selectedResults.add(result)
-                            }
-                    )
+                        )
+                    }
                 }
             }
         }
 
-        // 5. ZONE DE VALIDATION
+        //zone flottante
+
         if (selectedResults.isNotEmpty()) {
-            item {
-                Card(
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
-                    modifier = Modifier.fillMaxWidth().padding(top = 16.dp)
-                ) {
-                    Column(
-                        modifier = Modifier.padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(16.dp)
+
+            Card(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                shape = RoundedCornerShape(16.dp),
+                elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+            ) {
+
+                Column {
+
+                    // BARRE MINI
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { isPanelExpanded = !isPanelExpanded }
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
+
+                        Icon(
+                            imageVector = Icons.Default.Add,
+                            contentDescription = null
+                        )
+
+                        Spacer(Modifier.width(8.dp))
+
                         Text(
                             "Ajouter ${selectedResults.size} sommet(s)",
                             style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold
+                            modifier = Modifier.weight(1f)
                         )
 
-                        GroupSelector(
-                            existingGroups = existingGroups,
-                            onGroupSelected = { selectedGroupName = it }
+                        Icon(
+                            imageVector = if (isPanelExpanded)
+                                Icons.Default.KeyboardArrowDown
+                            else
+                                Icons.Default.KeyboardArrowUp,
+                            contentDescription = null
                         )
+                    }
 
-                        Button(
-                            onClick = {
-                                selectedResults.forEach { apiRes ->
-                                    val newSummit = SummitEntity(
-                                        name = apiRes.name,
-                                        altitude = apiRes.altitude,
-                                        groupName = selectedGroupName.ifBlank { null },
-                                        latitude = apiRes.lat,
-                                        longitude = apiRes.lon,
-                                        location = "Import Carte",
-                                        transportModes = emptyList()
-                                    )
-                                    viewModel.addSummit(newSummit)
-                                }
-                                Toast.makeText(context, "${selectedResults.size} sommets ajoutés !", Toast.LENGTH_SHORT).show()
-                                onFinished()
-                            },
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                    // CONTENU ÉTENDU
+                    AnimatedVisibility(visible = isPanelExpanded) {
+
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(16.dp)
                         ) {
-                            Icon(Icons.Default.Save, contentDescription = null)
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text("Confirmer l'ajout")
+
+                            GroupSelector(
+                                existingGroups = existingGroups,
+                                onGroupSelected = { selectedGroupName = it }
+                            )
+
+                            Button(
+                                onClick = {
+                                    selectedResults.forEach { apiRes ->
+                                        viewModel.addSummit(
+                                            SummitEntity(
+                                                name = apiRes.name,
+                                                altitude = apiRes.altitude,
+                                                groupName = selectedGroupName.ifBlank { null },
+                                                latitude = apiRes.lat,
+                                                longitude = apiRes.lon,
+                                                location = "Import Carte",
+                                                transportModes = emptyList()
+                                            )
+                                        )
+                                    }
+                                    Toast.makeText(
+                                        context,
+                                        "${selectedResults.size} sommets ajoutés !",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                    onFinished()
+                                },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Icon(Icons.Default.Save, contentDescription = null)
+                                Spacer(Modifier.width(8.dp))
+                                Text("Confirmer l'ajout")
+                            }
                         }
                     }
                 }
             }
-            item { Spacer(modifier = Modifier.height(80.dp)) }
         }
+
     }
+
 }
